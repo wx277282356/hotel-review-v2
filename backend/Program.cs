@@ -303,11 +303,43 @@ app.MapDelete("/api/staff/{id:guid}", async (Guid id, string? token, AppDbContex
 // 客人提交评价（开放，无需令牌）
 app.MapPost("/api/review", async (Review review, AppDbContext db) =>
 {
-    review.Id = Guid.NewGuid();
-    review.CreatedAt = DateTime.UtcNow;
-    db.Reviews.Add(review);
+    // --- 入参校验 ---
+    // 这个接口是公开的（客人免登录提交），且经隧道暴露在公网，
+    // 因此必须挡住"没有意义的请求"，否则空 body 也会被存成一条评价，污染统计。
+    // 注意：光在这里判空是不够的——Type 字段一旦在模型上给了默认值，
+    // 空 body 反序列化后就已经被填成默认值了（详见 Models/Review.cs 的注释）。
+    var type = (review.Type ?? "").Trim().ToLowerInvariant();
+    if (type != "positive" && type != "negative")
+        return Results.BadRequest(new { error = "type 必须是 positive 或 negative" });
+
+    var room = review.Room?.Trim();
+    if (room != null && room.Length > 50)
+        return Results.BadRequest(new { error = "房间号过长" });
+
+    // 理由：去空、去重、限长，避免有人塞超长内容
+    var reasons = (review.Reasons ?? new List<string>())
+        .Select(r => (r ?? "").Trim())
+        .Where(r => r.Length > 0)
+        .Distinct()
+        .Take(20)
+        .Select(r => r.Length > 50 ? r[..50] : r)
+        .ToList();
+
+    var staff = review.StaffUsername?.Trim();
+    if (staff != null && staff.Length > 50) staff = staff[..50];
+
+    var entity = new Review
+    {
+        Id = Guid.NewGuid(),
+        Type = type,
+        Reasons = reasons,
+        Room = string.IsNullOrWhiteSpace(room) ? null : room,
+        StaffUsername = string.IsNullOrWhiteSpace(staff) ? null : staff,
+        CreatedAt = DateTime.UtcNow
+    };
+    db.Reviews.Add(entity);
     await db.SaveChangesAsync();
-    return Results.Ok(review);
+    return Results.Ok(entity);
 });
 
 // 后台拉全量（需登录：管理员或查看者）
