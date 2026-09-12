@@ -7,6 +7,7 @@ import {
 } from '../utils/auth.js'
 import StaffAdmin from '../components/StaffAdmin.vue'
 import SiteSettingsEditor from '../components/SiteSettingsEditor.vue'
+import { settings } from '../utils/settings.js'
 
 // ---------------- 登录 ----------------
 const loginForm = ref({ username: '', password: '' })
@@ -203,7 +204,7 @@ onMounted(async () => {
   <div class="admin">
     <div class="brand-head">
       <img class="brand-logo" :src="logoUrl" alt="" />
-      <span>城市酒店 · 点评后台</span>
+      <span>{{ settings.hotelName }} · 点评后台</span>
     </div>
 
     <!-- ============ 未登录：登录卡 ============ -->

@@ -14,12 +14,14 @@ const guestMode = !!roomParam
 const view = ref(adminParam === '1' ? 'admin' : 'kiosk')
 // LOGO 路径（默认随 GitHub Pages 子路径适配；若后台已上传自定义 LOGO，会在启动后自动替换）
 import { logoUrl } from './utils/logo.js'
+// 酒店名称等文案取自"站点设置"，不写死在界面里（后台改名后这里自动跟着变）
+import { settings } from './utils/settings.js'
 </script>
 
 <template>
   <div class="app">
     <header v-if="!guestMode" class="topbar">
-      <span class="brand"><img class="brand-logo" :src="logoUrl" alt="" />城市酒店 · 点评</span>
+      <span class="brand"><img class="brand-logo" :src="logoUrl" alt="" />{{ settings.hotelName }} · 点评</span>
       <nav>
         <button :class="{active: view==='kiosk'}" @click="view='kiosk'">点评台</button>
         <button :class="{active: view==='admin'}" @click="view='admin'">后台</button>

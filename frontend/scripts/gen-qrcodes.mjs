@@ -1,6 +1,8 @@
 // 批量生成每间客房的点评二维码 + 下载页
 // 用法：node scripts/gen-qrcodes.mjs
-// 改域名时：改下方 SITE_BASE 后重跑，再 npm run deploy 即可。
+// 换域名 / 换酒店名时不必改代码，用环境变量覆盖后重跑即可：
+//   SITE_BASE=https://review.xxx.com HOTEL_NAME=某某酒店 node scripts/gen-qrcodes.mjs
+// 生成完记得 npm run deploy 推上线。
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -12,8 +14,17 @@ const PUBLIC = path.join(ROOT, 'public')
 const OUT_DIR = path.join(PUBLIC, 'qrcodes')
 const ROOMS_FILE = path.join(__dirname, 'rooms.txt')
 
-// ★ 部署后的前端地址（GitHub Pages 测试期）。换客户自有域名时改这一行重跑即可。
-const SITE_BASE = 'https://wx277282356.github.io/hotel-review-v2'
+// ★ 部署后的前端地址（GitHub Pages 测试期）。换客户自有域名时用 SITE_BASE 环境变量覆盖。
+const SITE_BASE = (process.env.SITE_BASE || 'https://wx277282356.github.io/hotel-review-v2').replace(/\/+$/, '')
+// ★ 酒店名称，仅影响下载页的标题文字（二维码本身只含房间号，与名称无关）。
+//   应与后台「站点设置」里的酒店名称保持一致。
+const HOTEL_NAME = process.env.HOTEL_NAME || '城市酒店'
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+  ))
+}
 
 function readRooms() {
   const raw = fs.readFileSync(ROOMS_FILE, 'utf-8')
@@ -21,10 +32,11 @@ function readRooms() {
 }
 
 function buildDownloadPage(rooms) {
+  const name = escapeHtml(HOTEL_NAME)
   const cards = rooms.map(r => `
     <div class="card">
-      <div class="room">${r}</div>
-      <img src="./${r}.png" alt="房间 ${r} 点评二维码" />
+      <div class="room">${escapeHtml(r)}</div>
+      <img src="./${r}.png" alt="房间 ${escapeHtml(r)} 点评二维码" />
       <a class="dl" href="./${r}.png" download>⬇ 下载</a>
     </div>`).join('')
 
@@ -33,7 +45,7 @@ function buildDownloadPage(rooms) {
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>城市酒店 · 客房评价二维码下载</title>
+<title>${name} · 客房评价二维码下载</title>
 <style>
   body{font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;margin:0;background:#f5f3ee;color:#333;}
   header{padding:18px 20px;background:#fff;border-bottom:1px solid #eee;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;}
@@ -55,7 +67,7 @@ function buildDownloadPage(rooms) {
 <body>
   <header>
     <div>
-      <h1>城市酒店 · 客房评价二维码</h1>
+      <h1>${name} · 客房评价二维码</h1>
       <div class="tip">共 ${rooms.length} 间 · 扫码即进入该房间点评页 · 可批量打印后裁剪贴于客房</div>
     </div>
     <button onclick="window.print()">🖨 打印全部</button>
