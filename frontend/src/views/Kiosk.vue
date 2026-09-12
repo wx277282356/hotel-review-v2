@@ -32,6 +32,8 @@ const negativeOptions = computed(() => settings.value.negativeReasons || [])
 const thanksMsg = computed(() =>
   type.value === 'positive' ? settings.value.positiveMsg : settings.value.negativeMsg
 )
+// 感谢屏图形：好评=金色五角星、差评=机器人头像（K-16，图形与旧版一致；中英双语待 Q14）
+const isPositive = computed(() => type.value === 'positive')
 
 // K-19：客人页右上角实时时钟（仅展示，不参与评价）
 const now = ref('')
@@ -189,7 +191,29 @@ onBeforeUnmount(() => {
 
     <transition name="fade">
       <div v-if="done" class="thanks">
-        <div class="check">✅</div>
+        <!-- 好评：金色五角星（带弹入动画）；差评：机器人头像（弹入 + 眨眼） -->
+        <div class="art">
+          <svg v-if="isPositive" class="star" viewBox="0 0 120 120" aria-hidden="true">
+            <defs>
+              <linearGradient id="starGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#ffe9a8" />
+                <stop offset="100%" stop-color="#e0b53c" />
+              </linearGradient>
+            </defs>
+            <polygon
+              points="60,14 73,46 108,48 80,70 90,104 60,82 30,104 40,70 12,48 47,46"
+              fill="url(#starGrad)" stroke="#caa033" stroke-width="2" stroke-linejoin="round"
+            />
+          </svg>
+          <svg v-else class="bot" viewBox="0 0 120 120" aria-hidden="true">
+            <line x1="60" y1="30" x2="60" y2="14" stroke="#b9a7dd" stroke-width="4" stroke-linecap="round" />
+            <circle cx="60" cy="11" r="5" fill="#a07d1f" />
+            <rect x="28" y="30" width="64" height="58" rx="16" fill="#e9e2f5" stroke="#b9a7dd" stroke-width="3" />
+            <circle class="eye" cx="46" cy="54" r="7" fill="#5b4b8a" />
+            <circle class="eye" cx="74" cy="54" r="7" fill="#5b4b8a" />
+            <path d="M46 74 q14 12 28 0" stroke="#5b4b8a" stroke-width="4" fill="none" stroke-linecap="round" />
+          </svg>
+        </div>
         <div class="msg">{{ thanksMsg }}</div>
         <div class="cd">{{ countdown }} 秒后自动返回</div>
       </div>
@@ -235,10 +259,16 @@ onBeforeUnmount(() => {
 .submit { flex:1; padding:14px; border:none; border-radius:12px; background:var(--red); color:#fff; font-size:1.1rem; cursor:pointer; }
 .submit:disabled { opacity:.45; cursor:not-allowed; }
 
-.thanks { position:fixed; inset:0; background:rgba(255,255,255,.96); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; z-index:30; }
-.thanks .check { font-size:3rem; }
+.thanks { position:fixed; inset:0; background:rgba(255,255,255,.96); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px; z-index:30; }
+.thanks .art { width:120px; height:120px; }
+.thanks .star { width:100%; height:100%; animation:starPop .6s cubic-bezier(.34,1.56,.64,1) both; filter:drop-shadow(0 6px 14px rgba(224,181,60,.35)); }
+.thanks .bot { width:100%; height:100%; animation:botBounce .6s cubic-bezier(.34,1.56,.64,1) both; }
+.thanks .bot .eye { transform-origin:center; animation:botBlink 3s 1s infinite; }
 .thanks .msg { font-size:1.3rem; font-weight:700; color:var(--green); text-align:center; padding:0 20px; }
 .thanks .cd { font-size:.95rem; color:#999; }
+@keyframes starPop { 0% { transform:scale(0) rotate(-40deg); opacity:0 } 60% { transform:scale(1.18) rotate(10deg); opacity:1 } 100% { transform:scale(1) rotate(0) } }
+@keyframes botBounce { 0% { transform:translateY(-36px) scale(.8); opacity:0 } 60% { transform:translateY(6px) scale(1.05); opacity:1 } 100% { transform:translateY(0) scale(1) } }
+@keyframes botBlink { 0%,90%,100% { transform:scaleY(1) } 95% { transform:scaleY(.1) } }
 .fade-enter-active, .fade-leave-active { transition:opacity .25s; }
 .fade-enter-from, .fade-leave-to { opacity:0; }
 
