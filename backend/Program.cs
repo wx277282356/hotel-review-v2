@@ -63,4 +63,42 @@ app.MapGet("/api/stats", async (AppDbContext db, string? token, IConfiguration c
     });
 });
 
+// 按房间统计（差评优先排序）
+app.MapGet("/api/stats/by-room", async (AppDbContext db, string? token, IConfiguration cfg) =>
+{
+    if (token != cfg["AdminToken"]) return Results.Unauthorized();
+    var all = await db.Reviews.ToListAsync();
+    var groups = all
+        .GroupBy(r => string.IsNullOrWhiteSpace(r.Room) ? "未记录" : r.Room)
+        .Select(g => new
+        {
+            room = g.Key,
+            total = g.Count(),
+            positive = g.Count(r => r.Type == "positive"),
+            negative = g.Count(r => r.Type != "positive")
+        })
+        .OrderByDescending(x => x.negative).ThenByDescending(x => x.total)
+        .ToList();
+    return Results.Ok(groups);
+});
+
+// 按员工工号统计（总量排序）
+app.MapGet("/api/stats/by-staff", async (AppDbContext db, string? token, IConfiguration cfg) =>
+{
+    if (token != cfg["AdminToken"]) return Results.Unauthorized();
+    var all = await db.Reviews.ToListAsync();
+    var groups = all
+        .GroupBy(r => string.IsNullOrWhiteSpace(r.StaffUsername) ? "未记录" : r.StaffUsername)
+        .Select(g => new
+        {
+            staff = g.Key,
+            total = g.Count(),
+            positive = g.Count(r => r.Type == "positive"),
+            negative = g.Count(r => r.Type != "positive")
+        })
+        .OrderByDescending(x => x.total)
+        .ToList();
+    return Results.Ok(groups);
+});
+
 app.Run();

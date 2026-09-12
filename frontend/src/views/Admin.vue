@@ -8,6 +8,8 @@ const logoUrl = import.meta.env.BASE_URL + 'logo.png'
 const token = ref(localStorage.getItem('admin_token') || '')
 const stats = ref(null)
 const reviews = ref([])
+const statsByRoom = ref([])
+const statsByStaff = ref([])
 const error = ref('')
 const loading = ref(false)
 const filterType = ref('all')
@@ -23,12 +25,16 @@ async function load() {
   error.value = ''
   loading.value = true
   try {
-    const [s, r] = await Promise.all([
+    const [s, r, byRoom, byStaff] = await Promise.all([
       api.get('/stats?token=' + encodeURIComponent(token.value)),
-      api.get('/reviews?token=' + encodeURIComponent(token.value))
+      api.get('/reviews?token=' + encodeURIComponent(token.value)),
+      api.get('/stats/by-room?token=' + encodeURIComponent(token.value)),
+      api.get('/stats/by-staff?token=' + encodeURIComponent(token.value))
     ])
     stats.value = s.data
     reviews.value = r.data
+    statsByRoom.value = byRoom.data
+    statsByStaff.value = byStaff.data
   } catch (e) {
     error.value = '加载失败：' + (e.response?.status === 401 ? '令牌错误' : (e.message || '网络错误'))
   } finally {
@@ -106,6 +112,32 @@ onMounted(() => { if (token.value) load() })
       </tbody>
     </table>
     <p v-else-if="!loading && stats" class="empty">暂无数据</p>
+
+    <div v-if="statsByRoom.length" class="breakdown">
+      <h3>📊 按房间统计（差评优先）</h3>
+      <table>
+        <thead><tr><th>房间</th><th>总数</th><th>好评</th><th>差评</th></tr></thead>
+        <tbody>
+          <tr v-for="x in statsByRoom" :key="x.room">
+            <td>{{ x.room }}</td><td>{{ x.total }}</td>
+            <td class="green">{{ x.positive }}</td><td class="red">{{ x.negative }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div v-if="statsByStaff.length" class="breakdown">
+      <h3>📊 按员工工号统计</h3>
+      <table>
+        <thead><tr><th>工号</th><th>总数</th><th>好评</th><th>差评</th></tr></thead>
+        <tbody>
+          <tr v-for="x in statsByStaff" :key="x.staff">
+            <td>{{ x.staff }}</td><td>{{ x.total }}</td>
+            <td class="green">{{ x.positive }}</td><td class="red">{{ x.negative }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
   </div>
 </template>
 
@@ -134,4 +166,9 @@ th, td { padding:10px; border-bottom:1px solid #eee; font-size:.85rem; text-alig
 .badge.positive { background:#eafaf0; color:var(--green); }
 .badge.negative { background:#fdecea; color:var(--red); }
 .empty { color:#999; text-align:center; }
+.breakdown { margin-top:18px; }
+.breakdown h3 { font-size:.95rem; color:#444; margin:0 0 8px; }
+.breakdown table { margin-bottom:6px; }
+.green { color:var(--green); font-weight:600; }
+.red { color:var(--red); font-weight:600; }
 </style>
