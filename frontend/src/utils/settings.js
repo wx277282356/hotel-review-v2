@@ -14,6 +14,8 @@ export const DEFAULT_SETTINGS = {
   guestPrompt: '请您为本次入住体验评分',
   positiveMsg: '感谢您的反馈！',
   negativeMsg: '已收到您的反馈，我们会立即改进！',
+  // 客人提交后感谢页自动返回的秒数（旧系统 autoReturn，2–10，默认 4）
+  autoReturn: 4,
   positiveReasons: ['服务态度好', '房间干净', '设施完善', '位置方便', '性价比高', '早餐丰富'],
   negativeReasons: ['服务态度差', '房间不干净', '设施故障', '噪音大', '网络差', '其他'],
 }
@@ -26,6 +28,10 @@ function sanitize(data) {
   for (const k of ['hotelName', 'hotelNameEn', 'guestPrompt', 'positiveMsg', 'negativeMsg']) {
     if (typeof data[k] === 'string' && data[k].trim()) out[k] = data[k]
   }
+  // 自动返回秒数：必须是 2–10 的整数，否则回落默认 4
+  const ar = Number(data?.autoReturn)
+  if (Number.isFinite(ar)) out.autoReturn = Math.min(10, Math.max(2, Math.round(ar)))
+  else out.autoReturn = DEFAULT_SETTINGS.autoReturn
   for (const k of ['positiveReasons', 'negativeReasons']) {
     if (Array.isArray(data[k])) {
       out[k] = data[k].filter(x => typeof x === 'string' && x.trim())

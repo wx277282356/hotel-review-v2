@@ -14,6 +14,7 @@ const form = ref({
   guestPrompt: '',
   positiveMsg: '',
   negativeMsg: '',
+  autoReturn: 4,
   positiveReasonsText: '',
   negativeReasonsText: '',
 })
@@ -33,6 +34,7 @@ async function load() {
       guestPrompt: d.guestPrompt || '',
       positiveMsg: d.positiveMsg || '',
       negativeMsg: d.negativeMsg || '',
+      autoReturn: Number(d.autoReturn) || 4,
       positiveReasonsText: (d.positiveReasons || []).join('\n'),
       negativeReasonsText: (d.negativeReasons || []).join('\n'),
     }
@@ -63,6 +65,7 @@ async function save() {
       guestPrompt: form.value.guestPrompt,
       positiveMsg: form.value.positiveMsg,
       negativeMsg: form.value.negativeMsg,
+      autoReturn: Number(form.value.autoReturn) || 4,
       positiveReasons: toList(form.value.positiveReasonsText),
       negativeReasons: toList(form.value.negativeReasonsText),
     })
@@ -115,6 +118,11 @@ onMounted(load)
         <input v-model="form.negativeMsg" maxlength="60" placeholder="已收到您的反馈，我们会立即改进！" />
       </label>
     </div>
+
+    <label>
+      <span>提交后自动返回秒数<em>2–10 秒，客人读完感谢页后自动回到首页</em></span>
+      <input v-model.number="form.autoReturn" type="number" min="2" max="10" step="1" />
+    </label>
 
     <div class="grid">
       <label>

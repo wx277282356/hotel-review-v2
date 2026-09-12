@@ -24,6 +24,12 @@ public class SiteSettings
     public string PositiveMsg { get; set; } = "感谢您的反馈！";
     public string NegativeMsg { get; set; } = "已收到您的反馈，我们会立即改进！";
 
+    /// <summary>
+    /// 客人提交后感谢页自动返回的秒数（旧系统叫 autoReturn）。
+    /// 范围 2–10，超出自动钳制；默认 4。前端倒计时文案用到它。
+    /// </summary>
+    public int AutoReturn { get; set; } = 4;
+
     public List<string> PositiveReasons { get; set; } = new()
     {
         "服务态度好", "房间干净", "设施完善", "位置方便", "性价比高", "早餐丰富"
@@ -52,6 +58,10 @@ public class SiteSettings
         if (GuestPrompt.Length > MaxTextLength) return $"客人页提示语不能超过 {MaxTextLength} 个字";
         if (PositiveMsg.Length > MaxTextLength) return $"好评提示语不能超过 {MaxTextLength} 个字";
         if (NegativeMsg.Length > MaxTextLength) return $"差评提示语不能超过 {MaxTextLength} 个字";
+
+        // 自动返回秒数：钳制到 2–10（旧系统的可设范围）
+        if (AutoReturn < 2) AutoReturn = 2;
+        else if (AutoReturn > 10) AutoReturn = 10;
 
         var pos = Sanitize(PositiveReasons, "好评原因", out var e1);
         if (e1 != null) return e1;

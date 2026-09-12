@@ -723,6 +723,7 @@ app.MapGet("/api/settings/public", async (AppDbContext db) =>
         negativeMsg = s.NegativeMsg,
         positiveReasons = s.PositiveReasons,
         negativeReasons = s.NegativeReasons,
+        autoReturn = s.AutoReturn,
     });
 });
 
