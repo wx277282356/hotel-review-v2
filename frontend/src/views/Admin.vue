@@ -95,6 +95,8 @@ watch(page, async () => {
 const stats = ref(null)
 const statsByRoom = ref([])
 const statsByStaff = ref([])
+// 今日指标：按本地日 0 点起算（Q4 已拍板=本地日），与旧系统看板"今日"三卡一致
+const today = ref(null)
 const error = ref('')
 const loading = ref(false)
 
@@ -110,14 +112,19 @@ async function load() {
   error.value = ''
   loading.value = true
   try {
-    const [s, byRoom, byStaff] = await Promise.all([
+    const now = new Date()
+    const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0)
+    const [s, byRoom, byStaff, t] = await Promise.all([
       api.get('/stats?' + tk()),
       api.get('/stats/by-room?' + tk()),
-      api.get('/stats/by-staff?' + tk())
+      api.get('/stats/by-staff?' + tk()),
+      api.get('/stats?start=' + encodeURIComponent(dayStart.toISOString()) +
+        '&end=' + encodeURIComponent(now.toISOString()) + '&' + tk())
     ])
     stats.value = s.data
     statsByRoom.value = byRoom.data
     statsByStaff.value = byStaff.data
+    today.value = t.data
   } catch (e) {
     if (e.response?.status === 401) {
       error.value = '登录已失效，请重新登录'
@@ -268,10 +275,11 @@ onMounted(async () => {
       <!-- ============ 数据看板 ============ -->
       <div v-if="page === 'dashboard'">
         <div v-if="stats" class="cards">
-          <div class="card"><b>{{ stats.total }}</b><span>总评价</span></div>
-          <div class="card green"><b>{{ stats.positive }}</b><span>好评</span></div>
-          <div class="card red"><b>{{ stats.negative }}</b><span>差评</span></div>
-          <div class="card"><b>{{ stats.positiveRate }}%</b><span>好评率</span></div>
+          <div class="card green"><b>{{ today?.positive ?? 0 }}</b><span>今日好评</span></div>
+          <div class="card red"><b>{{ today?.negative ?? 0 }}</b><span>今日差评</span></div>
+          <div class="card"><b>{{ today?.total ?? 0 }}</b><span>今日合计</span></div>
+          <div class="card"><b>{{ stats.total }}</b><span>累计总评价</span></div>
+          <div class="card"><b>{{ stats.positiveRate }}%</b><span>累计好评率</span></div>
         </div>
 
         <p class="readonly">🔒 评价数据只读，任何人都不可删除</p>
@@ -363,12 +371,14 @@ onMounted(async () => {
 .msg { flex-basis:100%; margin:0; font-size:.8rem; color:#444; }
 .err { color:var(--red); font-size:.8rem; }
 
-.cards { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin:12px 0; }
+.cards { display:grid; grid-template-columns:repeat(5,1fr); gap:8px; margin:12px 0; }
 .card { background:#fff; border:1px solid #eee; border-radius:10px; padding:12px; text-align:center; }
 .card b { display:block; font-size:1.3rem; color:#333; }
 .card span { font-size:.72rem; color:#999; }
 .card.green b { color:var(--green); }
 .card.red b { color:var(--red); }
+@media (max-width:560px) { .cards { grid-template-columns:repeat(3,1fr); } }
+@media (max-width:380px) { .cards { grid-template-columns:repeat(2,1fr); } }
 
 /* 页面标题 + 导航（对应旧系统后台的侧边导航条） */
 .page-title { font-size:1rem; font-weight:700; color:#4a3a28; margin:4px 0 8px; }
