@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch, onBeforeUnmount } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { api } from '../api/http.js'
 import { auth } from '../utils/auth.js'
 import { settings } from '../utils/settings.js'
@@ -13,23 +13,38 @@ const roomFromUrl = params.get('room') || ''
 const isRoomMode = !!roomFromUrl
 const room = ref(roomFromUrl)
 
-// type 表示"当前选中的评价类型"。
-// 对齐旧系统：点「👍 好评」= 立即提交（原因可空）；点「👎 差评」= 进入选原因 + 确认。
-const type = ref('positive')
+// type：当前选中的评价类型。
+//  · null       → 初始未选，展示两个大按钮
+//  · 'positive' → 好评：点一下直接保存（无"好在哪里"细分项，符合既定规则）
+//  · 'negative' → 差评：弹出原因选择弹窗，且必须至少选一项才能提交
+const type = ref(null)
 const reasons = ref([])
 const submitting = ref(false)
 const done = ref(false)
 const countdown = ref(0)
 let cdTimer = null
 
-// 差评才展示原因选项（好评一键提交，不展示原因选择，与旧系统一致）
+// 差评弹窗是否可见（提交成功进入感谢页时隐藏）
+const showNegative = computed(() => type.value === 'negative' && !done.value)
+
+// 差评才展示原因选项；好评一键提交，不存在任何原因选择 UI
 const negativeOptions = computed(() => settings.value.negativeReasons || [])
 const thanksMsg = computed(() =>
   type.value === 'positive' ? settings.value.positiveMsg : settings.value.negativeMsg
 )
 
+// K-19：客人页右上角实时时钟（仅展示，不参与评价）
+const now = ref('')
+let clockTimer = null
+function pad(n) { return String(n).padStart(2, '0') }
+function tick() {
+  const d = new Date()
+  now.value = `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+}
+
 // 切换类型时清空已选原因，避免残留上一个类型的选项被提交
 watch(type, () => { reasons.value = [] })
+watch(done, (v) => { if (v) reasons.value = [] })
 
 function toggleReason(r) {
   const i = reasons.value.indexOf(r)
@@ -39,10 +54,21 @@ function toggleReason(r) {
 
 function reset() {
   done.value = false
-  type.value = 'positive'
+  type.value = null
   reasons.value = []
   countdown.value = 0
   if (cdTimer) { clearInterval(cdTimer); cdTimer = null }
+}
+
+// 点「👎 差评」：弹出原因选择弹窗（强制选，不可直接跳过）
+function openNegative() {
+  reasons.value = []
+  type.value = 'negative'
+}
+// 弹窗内「返回」：回到首页两个按钮
+function closeNegative() {
+  type.value = null
+  reasons.value = []
 }
 
 async function doSubmit(t, rs) {
@@ -70,17 +96,16 @@ async function doSubmit(t, rs) {
   }
 }
 
-// 好评：点一下即提交，原因留空
+// 好评：点一下即直接保存，无任何细分项选择
 function submitPositive() {
+  type.value = 'positive'
   reasons.value = []
   doSubmit('positive', [])
 }
 
-// 差评：需先选原因；一个都没选则按旧系统行为弹确认框（K-13）
+// 差评：强制选原因；按钮在 reasons 为空时已禁用，这里再兜底拦截
 function submitNegative() {
-  if (reasons.value.length === 0) {
-    if (!window.confirm('您没有选择具体的不满意项，确定提交吗？')) return
-  }
+  if (reasons.value.length === 0) return
   doSubmit('negative', reasons.value)
 }
 
@@ -97,22 +122,29 @@ function startCountdown() {
   }, 1000)
 }
 
-onBeforeUnmount(() => { if (cdTimer) clearInterval(cdTimer) })
+onMounted(() => { tick(); clockTimer = setInterval(tick, 1000) })
+onBeforeUnmount(() => {
+  if (cdTimer) clearInterval(cdTimer)
+  if (clockTimer) clearInterval(clockTimer)
+})
 </script>
 
 <template>
   <div class="kiosk">
     <header class="brand">
       <div class="logo"><img :src="logoUrl" alt="" /></div>
-      <div class="name">{{ settings.hotelName }}</div>
-      <div v-if="settings.hotelNameEn" class="name-en">{{ settings.hotelNameEn }}</div>
-      <div class="sub">{{ settings.guestPrompt }}</div>
+      <div class="titles">
+        <div class="name">{{ settings.hotelName }}</div>
+        <div v-if="settings.hotelNameEn" class="name-en">{{ settings.hotelNameEn }}</div>
+        <div class="sub">{{ settings.guestPrompt }}</div>
+      </div>
+      <div class="clock" aria-hidden="true">{{ now }}</div>
     </header>
 
-    <!-- 两个大按钮：好评=立即提交；差评=进入选原因 -->
+    <!-- 两个大按钮：好评=立即保存；差评=弹出原因选择 -->
     <div class="row">
       <button class="big positive" @click="submitPositive">👍 好评</button>
-      <button class="big negative" :class="{on:type==='negative'}" @click="type='negative'">👎 差评</button>
+      <button class="big negative" @click="openNegative">👎 差评</button>
     </div>
 
     <div class="room" :class="{locked: isRoomMode}">
@@ -128,14 +160,32 @@ onBeforeUnmount(() => { if (cdTimer) clearInterval(cdTimer) })
       />
     </div>
 
-    <!-- 差评详情：选原因 + 提交（好评不展示原因区，点按钮即提交） -->
-    <div v-if="type === 'negative'" class="reasons">
-      <span class="tip">请告诉我们哪里需要改进：</span>
-      <div class="chips">
-        <button v-for="r in negativeOptions" :key="r" class="chip" :class="{on:reasons.includes(r)}" @click="toggleReason(r)">{{ r }}</button>
+    <!-- 差评弹窗：必须至少选择一项原因才能提交（强制，不可跳过） -->
+    <transition name="fade">
+      <div v-if="showNegative" class="modal-mask" @click.self="closeNegative">
+        <div class="modal" role="dialog" aria-modal="true">
+          <div class="modal-title">请告诉我们哪里需要改进</div>
+          <div class="chips">
+            <button
+              v-for="r in negativeOptions"
+              :key="r"
+              class="chip"
+              :class="{on: reasons.includes(r)}"
+              @click="toggleReason(r)"
+            >{{ r }}</button>
+          </div>
+          <p class="req-tip" :class="{show: reasons.length === 0}">请至少选择一项不满意的原因</p>
+          <div class="modal-actions">
+            <button class="ghost" :disabled="submitting" @click="closeNegative">返回</button>
+            <button
+              class="submit"
+              :disabled="reasons.length === 0 || submitting"
+              @click="submitNegative"
+            >{{ submitting ? '提交中…' : '提交差评' }}</button>
+          </div>
+        </div>
       </div>
-      <button class="submit" :disabled="submitting" @click="submitNegative">{{ submitting ? '提交中…' : '提交差评' }}</button>
-    </div>
+    </transition>
 
     <transition name="fade">
       <div v-if="done" class="thanks">
@@ -149,33 +199,56 @@ onBeforeUnmount(() => { if (cdTimer) clearInterval(cdTimer) })
 
 <style scoped>
 .kiosk { display:flex; flex-direction:column; gap:18px; max-width:480px; margin:0 auto; }
-.brand { text-align:center; padding:8px 0 4px; }
+.brand { position:relative; text-align:center; padding:10px 0 4px; }
 .logo { width:72px; height:72px; margin:0 auto 8px; border-radius:16px; background:linear-gradient(160deg,#e8c977,#c9a84c 50%,#8b6914); border:2px solid var(--gold); padding:8px; box-sizing:border-box; display:flex; align-items:center; justify-content:center; }
 .logo img { width:100%; height:100%; object-fit:contain; }
-.name { font-size:1.3rem; font-weight:700; color:#a07d1f; }
-.name-en { font-size:.9rem; color:#a07d1f; opacity:.75; margin-top:1px; letter-spacing:.02em; }
-.sub { font-size:.85rem; color:#888; margin-top:2px; }
+.titles { display:inline-block; }
+.name { font-size:1.3rem; font-weight:700; color:#a07d1f; position:relative; display:inline-block; padding-bottom:6px; }
+/* K-3/K-4：主标题下方金色装饰线，让品牌感更明确 */
+.name::after { content:''; position:absolute; left:50%; bottom:0; transform:translateX(-50%); width:46px; height:3px; border-radius:2px; background:linear-gradient(90deg,var(--gold),#e8c977); }
+.name-en { font-size:.9rem; color:#a07d1f; opacity:.75; margin-top:8px; letter-spacing:.02em; }
+.sub { font-size:.85rem; color:#888; margin-top:4px; }
+.clock { position:absolute; top:6px; right:0; font-size:.78rem; color:#bbb; font-variant-numeric:tabular-nums; letter-spacing:.03em; }
 .row { display:flex; gap:12px; }
 .big { flex:1; padding:30px 0; font-size:1.25rem; border-radius:16px; border:2px solid #ddd; background:#fff; cursor:pointer; transition:.15s; }
 .big.positive { border-color:var(--green); background:#eafaf0; color:var(--green); }
-.big.negative.on { border-color:var(--red); background:#fdecea; color:var(--red); }
+.big.negative { border-color:var(--red); background:#fdecea; color:var(--red); }
+.big:active { transform:scale(.98); }
 .room { display:flex; align-items:center; gap:10px; padding:10px 14px; background:#fff; border:1px solid #eee; border-radius:10px; }
 .room.locked { background:#faf8f2; }
 .room .label { font-size:.8rem; color:#999; flex-shrink:0; }
 .room .value { font-weight:600; color:#444; }
 .room-input { flex:1; min-width:0; border:none; outline:none; background:transparent; font-size:1rem; font-weight:600; color:#444; }
 .room-input::placeholder { font-weight:400; color:#bbb; }
-.reasons { display:flex; flex-direction:column; gap:12px; padding:14px; background:#fff; border:1px solid #eee; border-radius:12px; }
-.tip { font-size:.9rem; color:#666; }
+
+/* 差评弹窗 */
+.modal-mask { position:fixed; inset:0; background:rgba(0,0,0,.45); display:flex; align-items:center; justify-content:center; padding:20px; z-index:20; }
+.modal { width:100%; max-width:440px; background:#fff; border-radius:16px; padding:22px; box-shadow:0 12px 40px rgba(0,0,0,.25); }
+.modal-title { font-size:1.05rem; font-weight:700; color:#444; margin-bottom:14px; }
 .chips { display:flex; flex-wrap:wrap; gap:8px; }
 .chip { padding:9px 14px; border:1px solid #ccc; border-radius:20px; background:#fff; cursor:pointer; font-size:.85rem; }
 .chip.on { border-color:var(--gold); background:#fff8e6; color:#a07d1f; font-weight:600; }
-.submit { padding:16px; border:none; border-radius:12px; background:var(--red); color:#fff; font-size:1.1rem; cursor:pointer; }
-.submit:disabled { opacity:.6; }
-.thanks { position:fixed; inset:0; background:rgba(255,255,255,.96); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; }
+.req-tip { font-size:.8rem; color:var(--red); margin:12px 0 0; height:0; opacity:0; transition:.2s; overflow:hidden; }
+.req-tip.show { height:auto; opacity:1; margin-top:12px; }
+.modal-actions { display:flex; gap:10px; margin-top:16px; }
+.ghost { flex:0 0 auto; padding:14px 18px; border:1px solid #ddd; border-radius:12px; background:#fff; color:#888; font-size:1rem; cursor:pointer; }
+.submit { flex:1; padding:14px; border:none; border-radius:12px; background:var(--red); color:#fff; font-size:1.1rem; cursor:pointer; }
+.submit:disabled { opacity:.45; cursor:not-allowed; }
+
+.thanks { position:fixed; inset:0; background:rgba(255,255,255,.96); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; z-index:30; }
 .thanks .check { font-size:3rem; }
-.thanks .msg { font-size:1.3rem; font-weight:700; color:var(--green); }
+.thanks .msg { font-size:1.3rem; font-weight:700; color:var(--green); text-align:center; padding:0 20px; }
 .thanks .cd { font-size:.95rem; color:#999; }
-.fade-enter-active, .fade-leave-active { transition:opacity .3s; }
+.fade-enter-active, .fade-leave-active { transition:opacity .25s; }
 .fade-enter-from, .fade-leave-to { opacity:0; }
+
+/* K-7：移动端断点，窄屏下按钮与弹窗更紧凑 */
+@media (max-width:400px) {
+  .big { padding:24px 0; font-size:1.1rem; }
+  .name { font-size:1.15rem; }
+  .modal { padding:18px; }
+  .modal-actions { flex-direction:column-reverse; }
+  .ghost { width:100%; }
+  .submit { width:100%; }
+}
 </style>

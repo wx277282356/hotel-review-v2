@@ -15,7 +15,6 @@ const form = ref({
   positiveMsg: '',
   negativeMsg: '',
   autoReturn: 4,
-  positiveReasonsText: '',
   negativeReasonsText: '',
 })
 
@@ -35,7 +34,6 @@ async function load() {
       positiveMsg: d.positiveMsg || '',
       negativeMsg: d.negativeMsg || '',
       autoReturn: Number(d.autoReturn) || 4,
-      positiveReasonsText: (d.positiveReasons || []).join('\n'),
       negativeReasonsText: (d.negativeReasons || []).join('\n'),
     }
     loaded.value = true
@@ -66,12 +64,10 @@ async function save() {
       positiveMsg: form.value.positiveMsg,
       negativeMsg: form.value.negativeMsg,
       autoReturn: Number(form.value.autoReturn) || 4,
-      positiveReasons: toList(form.value.positiveReasonsText),
       negativeReasons: toList(form.value.negativeReasonsText),
     })
     // 用后端回传的结果回填，这样能立刻看到"去重/去空"后的真实效果
     const d = res.data || {}
-    form.value.positiveReasonsText = (d.positiveReasons || []).join('\n')
     form.value.negativeReasonsText = (d.negativeReasons || []).join('\n')
     msg.value = '✅ 已保存，客人页刷新后生效'
   } catch (e) {
@@ -88,8 +84,8 @@ onMounted(load)
   <div class="card">
     <h3>⚙️ 站点设置</h3>
     <p class="hint">
-      这里改的内容就是<b>客人扫码后看到的界面</b>——酒店名、提示语，以及好评/差评的选项按钮。
-      保存后客人页刷新即生效，不需要改代码或重新部署。
+      这里改的内容就是<b>客人扫码后看到的界面</b>——酒店名、提示语，以及差评时的原因选项。
+      好评为一键直接提交、不展示细分项。保存后客人页刷新即生效，不需要改代码或重新部署。
     </p>
 
     <div class="grid">
@@ -126,12 +122,12 @@ onMounted(load)
 
     <div class="grid">
       <label>
-        <span>好评选项<em>每行一个，最多 20 项、每项≤20 字</em></span>
-        <textarea v-model="form.positiveReasonsText" rows="7" spellcheck="false"></textarea>
-      </label>
-      <label>
-        <span>差评选项<em>每行一个，最多 20 项、每项≤20 字</em></span>
+        <span>差评选项<em>每行一个，最多 20 项、每项≤20 字；客人提交差评时强制至少选一项</em></span>
         <textarea v-model="form.negativeReasonsText" rows="7" spellcheck="false"></textarea>
+      </label>
+      <label class="note">
+        <span>好评设置</span>
+        <p>好评为<strong>一键直接提交</strong>，不展示任何细分选项，无需配置。</p>
       </label>
     </div>
 
@@ -152,6 +148,8 @@ label > span { display:block; font-size:.82rem; color:#666; margin-bottom:5px; }
 label em { font-style:normal; color:#bbb; margin-left:6px; font-size:.75rem; }
 input, textarea { width:100%; padding:9px 11px; border:1px solid #ddd; border-radius:8px; font-size:.9rem; font-family:inherit; box-sizing:border-box; background:#fff; }
 textarea { resize:vertical; line-height:1.7; }
+.note p { margin:0; padding:10px 12px; background:#faf8f2; border:1px dashed #e6dcc2; border-radius:8px; font-size:.82rem; color:#8a7a4d; line-height:1.7; }
+.note strong { color:#a07d1f; }
 input:focus, textarea:focus { outline:none; border-color:var(--gold); }
 .grid { display:grid; grid-template-columns:1fr 1fr; gap:0 14px; }
 @media (max-width:560px) { .grid { grid-template-columns:1fr; } }
