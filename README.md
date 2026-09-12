@@ -11,8 +11,10 @@
 hotel-review-v2/
 ├─ backend/     # .NET 10 Web API（端口 5188）
 ├─ frontend/    # Vue3 + Vite（含 scripts/ 二维码生成与旧数据迁移）
-├─ scripts/     # deploy.mjs（发布）、start-all.mjs（一键启动）
+├─ scripts/     # deploy.mjs（发布）、start-all.mjs（一键启动）、backup-db.mjs（备份）
+├─ backups/     # 数据备份（已 gitignore，含真实评价数据）
 ├─ 一键启动.bat          # ★ 日常只用双击这一个
+├─ 备份数据.bat          # 定期双击一次，把评价数据备份到本地
 └─ 部署与运维说明.md
 ```
 
@@ -22,12 +24,23 @@ hotel-review-v2/
 
 窗口保持开着；关窗口或 Ctrl+C 会一并停掉后端与隧道。
 
+**定期双击 `备份数据.bat`**：把评价数据与后台上传的 LOGO 备份到 `backups/`（自动只保留最近 30 份）。
+系统的硬承诺是「评价任何人都不可删除」，所以备份是唯一的保险——建议设为每天一次。
+
 分步手动执行（备选）：
 
 ```
 start-backend.bat      # 只启后端
 start-tunnel.bat       # 只起隧道
 ```
+
+## 公开接口的防护
+
+`POST /api/review` 客人免登录即可提交，因此做了两层防护：
+
+- **入参校验**：`type` 只接受 positive/negative；字段限长；理由去空去重（挡掉没有意义的请求）
+- **按客户端 IP 防刷限流**：连提 30 条内不拦，之后每分钟回补 12 条；登录接口更严（10 次）
+  - 超出返回 429 +「提交太频繁了，请稍等一会儿再试」，额度可在 `appsettings.json` 的 `ReviewRateLimit` 调整
 
 ## 首次准备
 

@@ -18,6 +18,9 @@ frontend/public/qrcodes/
 # 运行时数据：酒店后台上传的 LOGO
 backend/branding/
 
+# 数据备份（含真实评价数据，绝不提交）
+backups/
+
 # 敏感/本地
 .env
 *.log

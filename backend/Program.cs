@@ -1,4 +1,7 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.RateLimiting;
+using System.Threading.RateLimiting;
 using HotelReview.Api.Data;
 using HotelReview.Api.Models;
 using HotelReview.Api.Auth;
@@ -32,11 +35,87 @@ builder.Services.AddCors();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
+// ============================== 防刷限流 ==============================
+// POST /api/review 是**公开且免登录**的，还经隧道暴露在公网 —— 没有任何限制的话，
+// 随便一个脚本就能灌进成千上万条垃圾评价。这里按客户端 IP 做「令牌桶」限流：
+// 允许短时突发（客人一波退房同时评价），但持续速率受限。
+// 参数可在 appsettings 的 ReviewRateLimit 下调整，不用改代码。
+var rlBurst = builder.Configuration.GetValue<int?>("ReviewRateLimit:Burst") ?? 30;
+var rlPerMinute = builder.Configuration.GetValue<int?>("ReviewRateLimit:TokensPerMinute") ?? 12;
+
+// 取真实客户端 IP。
+// ⚠️ 关键：经 Cloudflare 隧道时，直连后端的是本机 cloudflared，
+// 只看 RemoteIpAddress 会全是 127.0.0.1 —— 限流就从"按客人"退化成"全酒店共用一份额度"，
+// 高峰期会误伤真实客人。所以必须靠转发头还原真实 IP。
+// Cloudflare 会把真实 IP 写进 CF-Connecting-IP 且会覆盖伪造值，优先用它。
+static string ClientKey(HttpContext ctx)
+{
+    var cf = ctx.Request.Headers["CF-Connecting-IP"].ToString();
+    if (!string.IsNullOrWhiteSpace(cf)) return "cf:" + cf.Trim();
+    return "ip:" + (ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown");
+}
+
+builder.Services.AddRateLimiter(o =>
+{
+    o.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    o.AddPolicy("review", ctx => RateLimitPartition.GetTokenBucketLimiter(
+        ClientKey(ctx),
+        _ => new TokenBucketRateLimiterOptions
+        {
+            TokenLimit = rlBurst,                                   // 突发上限
+            TokensPerPeriod = rlPerMinute,                          // 每分钟回补量
+            ReplenishmentPeriod = TimeSpan.FromMinutes(1),
+            AutoReplenishment = true,
+            QueueLimit = 0                                          // 不排队，直接拒绝
+        }));
+
+    // 登录接口单独用更严的额度，防密码暴力猜解
+    o.AddPolicy("login", ctx => RateLimitPartition.GetTokenBucketLimiter(
+        ClientKey(ctx),
+        _ => new TokenBucketRateLimiterOptions
+        {
+            TokenLimit = 10,
+            TokensPerPeriod = 5,
+            ReplenishmentPeriod = TimeSpan.FromMinutes(1),
+            AutoReplenishment = true,
+            QueueLimit = 0
+        }));
+
+    // 被限流时回一句人能看懂的话。
+    // 注意必须自己写 JSON 且带上 CORS 头，否则浏览器只会报"跨域错误"，
+    // 客人看到的是一句莫名其妙的网络错误，而不是"提交太频繁"。
+    o.OnRejected = async (ctx, ct) =>
+    {
+        var res = ctx.HttpContext.Response;
+        res.StatusCode = StatusCodes.Status429TooManyRequests;
+        res.ContentType = "application/json; charset=utf-8";
+        if (ctx.HttpContext.Request.Headers.ContainsKey("Origin"))
+        {
+            res.Headers.AccessControlAllowOrigin = "*";
+            res.Headers.AccessControlAllowHeaders = "*";
+            res.Headers.AccessControlAllowMethods = "*";
+        }
+        await res.WriteAsync("""{"error":"提交太频繁了，请稍等一会儿再试"}""", ct);
+    };
+});
+
 var app = builder.Build();
 
 app.UseSwagger();
 app.UseSwaggerUI();
+
+// 还原代理转发的真实客户端 IP / 协议（隧道场景必需）。
+// 不用额外配 KnownProxies：默认只信任 loopback，而 cloudflared 正是从本机连进来的。
+app.UseForwardedHeaders(new ForwardedHeadersOptions
+{
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto,
+    ForwardLimit = 2
+});
+
 app.UseCors(p => p.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod());
+
+// 顺序要紧：CORS 必须在限流之前，这样 429 响应才带得上跨域头
+app.UseRateLimiter();
 
 // 建表 + 引导管理员
 using (var scope = app.Services.CreateScope())
@@ -142,7 +221,7 @@ app.MapPost("/api/auth/login", async (LoginReq req, AppDbContext db) =>
         displayName = staff.DisplayName,
         expiresAt = session.ExpiresAt
     });
-});
+}).RequireRateLimiting("login");
 
 // 当前身份（前端启动时校验登录是否还有效）
 app.MapGet("/api/auth/me", async (string? token, AppDbContext db, IConfiguration cfg) =>
@@ -340,7 +419,7 @@ app.MapPost("/api/review", async (Review review, AppDbContext db) =>
     db.Reviews.Add(entity);
     await db.SaveChangesAsync();
     return Results.Ok(entity);
-});
+}).RequireRateLimiting("review");
 
 // 后台拉全量（需登录：管理员或查看者）
 app.MapGet("/api/reviews", async (AppDbContext db, string? token, IConfiguration cfg) =>
