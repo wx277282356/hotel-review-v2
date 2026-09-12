@@ -1,0 +1,14 @@
+# .NET
+bin/
+obj/
+*.user
+appsettings.Development.json
+
+# Node / Vue
+node_modules/
+dist/
+.vscode/
+
+# 敏感/本地
+.env
+*.log
