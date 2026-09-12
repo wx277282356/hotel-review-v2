@@ -1,9 +1,7 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import { api } from '../api/http.js'
-
-// LOGO 路径（随 GitHub Pages 子路径自动适配）
-const logoUrl = import.meta.env.BASE_URL + 'logo.png'
+import { logoUrl, resolveLogo, bumpLogoVersion } from '../utils/logo.js'
 
 const token = ref(localStorage.getItem('admin_token') || '')
 const stats = ref(null)
@@ -13,6 +11,49 @@ const statsByStaff = ref([])
 const error = ref('')
 const loading = ref(false)
 const filterType = ref('all')
+
+// ---- 品牌 LOGO 上传 ----
+const logoMsg = ref('')
+const logoBusy = ref(false)
+
+async function onLogoPick(e) {
+  const file = e.target.files?.[0]
+  if (!file) return
+  logoMsg.value = ''
+  if (!token.value) { logoMsg.value = '请先填写管理员令牌'; return }
+  if (file.size > 2 * 1024 * 1024) { logoMsg.value = '图片不能超过 2MB'; return }
+
+  logoBusy.value = true
+  try {
+    const fd = new FormData()
+    fd.append('file', file)
+    const res = await api.post('/settings/logo?token=' + encodeURIComponent(token.value), fd)
+    bumpLogoVersion(res.data?.version)
+    await resolveLogo()
+    logoMsg.value = '✅ LOGO 已更新，客人端刷新后生效'
+  } catch (err) {
+    logoMsg.value = '❌ 上传失败：' + (err.response?.status === 401 ? '令牌错误' : (err.message || '网络错误'))
+  } finally {
+    logoBusy.value = false
+    e.target.value = ''
+  }
+}
+
+async function resetLogo() {
+  logoMsg.value = ''
+  if (!token.value) { logoMsg.value = '请先填写管理员令牌'; return }
+  logoBusy.value = true
+  try {
+    await api.delete('/settings/logo?token=' + encodeURIComponent(token.value))
+    localStorage.removeItem('logo_version')
+    await resolveLogo()
+    logoMsg.value = '✅ 已恢复默认 LOGO'
+  } catch (err) {
+    logoMsg.value = '❌ 操作失败：' + (err.response?.status === 401 ? '令牌错误' : (err.message || '网络错误'))
+  } finally {
+    logoBusy.value = false
+  }
+}
 
 const filtered = computed(() => {
   if (filterType.value === 'all') return reviews.value
@@ -76,6 +117,22 @@ onMounted(() => { if (token.value) load() })
     </div>
 
     <p v-if="error" class="err">{{ error }}</p>
+
+    <div class="brand-set">
+      <div class="brand-set-head">🏨 品牌 LOGO（酒店可自行上传更换）</div>
+      <div class="brand-set-body">
+        <img class="brand-preview" :src="logoUrl" alt="当前 LOGO" />
+        <div class="brand-actions">
+          <label class="file-btn">
+            {{ logoBusy ? '处理中…' : '选择图片并上传' }}
+            <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" :disabled="logoBusy" @change="onLogoPick" />
+          </label>
+          <button class="ghost-btn" :disabled="logoBusy" @click="resetLogo">恢复默认</button>
+        </div>
+        <p class="brand-hint">支持 png / jpg / webp / gif，建议正方形、不超过 2MB。上传后客人扫码页与后台会同步生效。</p>
+        <p v-if="logoMsg" class="brand-msg">{{ logoMsg }}</p>
+      </div>
+    </div>
 
     <div v-if="stats" class="cards">
       <div class="card"><b>{{ stats.total }}</b><span>总评价</span></div>
@@ -171,4 +228,14 @@ th, td { padding:10px; border-bottom:1px solid #eee; font-size:.85rem; text-alig
 .breakdown table { margin-bottom:6px; }
 .green { color:var(--green); font-weight:600; }
 .red { color:var(--red); font-weight:600; }
+.brand-set { background:#fff; border:1px solid #eee; border-radius:10px; padding:12px; margin:10px 0 16px; }
+.brand-set-head { font-size:.85rem; font-weight:600; color:#555; margin-bottom:10px; }
+.brand-set-body { display:flex; flex-wrap:wrap; align-items:center; gap:14px; }
+.brand-preview { width:56px; height:56px; border-radius:10px; object-fit:contain; background:#fafafa; border:1px solid #eee; }
+.brand-actions { display:flex; gap:8px; flex-wrap:wrap; }
+.file-btn { display:inline-block; padding:8px 14px; border-radius:8px; background:var(--gold); color:#fff; font-size:.85rem; cursor:pointer; }
+.file-btn input { display:none; }
+.ghost-btn { padding:8px 14px; border-radius:8px; border:1px solid #ddd; background:#fff; color:#666; font-size:.85rem; cursor:pointer; }
+.brand-hint { flex-basis:100%; margin:0; font-size:.75rem; color:#999; line-height:1.5; }
+.brand-msg { flex-basis:100%; margin:0; font-size:.8rem; color:#444; }
 </style>

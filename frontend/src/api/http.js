@@ -10,3 +10,8 @@ export function applyConfig() {
   const cfg = (typeof window !== 'undefined' && window.__APP_CONFIG__) || {}
   if (cfg.apiBase) api.defaults.baseURL = cfg.apiBase
 }
+
+// 当前生效的后端地址（供拼接非 axios 请求用，如 LOGO 图片）
+export function getApiBase() {
+  return api.defaults.baseURL || '/api'
+}

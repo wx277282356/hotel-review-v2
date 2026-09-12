@@ -12,8 +12,8 @@ const roomParam = params.get('room')
 const adminParam = params.get('admin')
 const guestMode = !!roomParam
 const view = ref(adminParam === '1' ? 'admin' : 'kiosk')
-// LOGO 路径（随 GitHub Pages 子路径自动适配）
-const logoUrl = import.meta.env.BASE_URL + 'logo.png'
+// LOGO 路径（默认随 GitHub Pages 子路径适配；若后台已上传自定义 LOGO，会在启动后自动替换）
+import { logoUrl } from './utils/logo.js'
 </script>
 
 <template>

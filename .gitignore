@@ -15,6 +15,9 @@ vite.config.js.timestamp-*.mjs
 # 生成物（可由 scripts/gen-qrcodes.mjs 重新生成）
 frontend/public/qrcodes/
 
+# 运行时数据：酒店后台上传的 LOGO
+backend/branding/
+
 # 敏感/本地
 .env
 *.log

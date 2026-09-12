@@ -4,9 +4,8 @@ import { api } from '../api/http.js'
 
 // 酒店名称（后续可做成后台可配置）
 const HOTEL_NAME = '城市酒店'
-// LOGO 路径（随 GitHub Pages 子路径自动适配）
-const logoUrl = import.meta.env.BASE_URL + 'logo.png'
-
+// LOGO 路径（默认随 GitHub Pages 子路径适配；若后台已上传自定义 LOGO 会自动替换）
+import { logoUrl } from '../utils/logo.js'
 // 房间号来自二维码链接 ?room=XXX（客房模式）；前台模式可不带，由客人/前台手动填
 const params = new URLSearchParams(window.location.search)
 const roomFromUrl = params.get('room') || ''

@@ -101,4 +101,67 @@ app.MapGet("/api/stats/by-staff", async (AppDbContext db, string? token, IConfig
     return Results.Ok(groups);
 });
 
+// ===== 品牌 LOGO（酒店管理人员可在后台上传自己的 LOGO）=====
+// 存放目录：backend/branding/ （运行时数据，不入库不进 Git）
+var logoDir = Path.Combine(app.Environment.ContentRootPath, "branding");
+Directory.CreateDirectory(logoDir);
+string? FindCustomLogo() => Directory.GetFiles(logoDir, "logo.*").FirstOrDefault();
+
+// 读取当前 LOGO（开放访问：客人点评页也要显示）
+app.MapGet("/api/settings/logo", () =>
+{
+    var f = FindCustomLogo();
+    if (f == null) return Results.NotFound();
+    var mime = Path.GetExtension(f).ToLowerInvariant() switch
+    {
+        ".png" => "image/png",
+        ".jpg" or ".jpeg" => "image/jpeg",
+        ".webp" => "image/webp",
+        ".gif" => "image/gif",
+        _ => "application/octet-stream"
+    };
+    return Results.File(File.ReadAllBytes(f), mime);
+});
+
+// 上传 / 替换 LOGO（需管理员令牌）
+app.MapPost("/api/settings/logo", async (HttpRequest req, string? token, IConfiguration cfg) =>
+{
+    if (token != cfg["AdminToken"]) return Results.Unauthorized();
+    if (!req.HasFormContentType) return Results.BadRequest("请求需为 multipart/form-data");
+
+    var form = await req.ReadFormAsync();
+    var file = form.Files.FirstOrDefault();
+    if (file == null || file.Length == 0) return Results.BadRequest("未收到图片文件");
+
+    const long maxBytes = 2 * 1024 * 1024;
+    if (file.Length > maxBytes) return Results.BadRequest("图片不能超过 2MB");
+
+    var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
+    string[] allowed = [".png", ".jpg", ".jpeg", ".webp", ".gif"];
+    if (!allowed.Contains(ext)) return Results.BadRequest("仅支持 png / jpg / webp / gif");
+
+    foreach (var old in Directory.GetFiles(logoDir, "logo.*"))
+    {
+        try { File.Delete(old); } catch { /* 忽略占用中的旧文件 */ }
+    }
+
+    var target = Path.Combine(logoDir, "logo" + ext);
+    await using (var fs = File.Create(target))
+    {
+        await file.CopyToAsync(fs);
+    }
+    return Results.Ok(new { ok = true, version = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() });
+});
+
+// 恢复默认 LOGO（需管理员令牌）
+app.MapDelete("/api/settings/logo", (string? token, IConfiguration cfg) =>
+{
+    if (token != cfg["AdminToken"]) return Results.Unauthorized();
+    foreach (var old in Directory.GetFiles(logoDir, "logo.*"))
+    {
+        try { File.Delete(old); } catch { }
+    }
+    return Results.Ok(new { ok = true });
+});
+
 app.Run();
