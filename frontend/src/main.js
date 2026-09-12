@@ -2,6 +2,7 @@ import { createApp } from 'vue'
 import App from './App.vue'
 import { applyConfig } from './api/http.js'
 import { resolveLogo } from './utils/logo.js'
+import { loadSession } from './utils/auth.js'
 
 // 运行时加载部署配置（public/config.js），自动适配 GitHub Pages 子路径；
 // 改后端地址只需编辑 config.js 并重新推送，无需重新构建源码。
@@ -18,6 +19,9 @@ function loadConfig() {
 async function boot() {
   await loadConfig()
   applyConfig()
+  // 启动即恢复登录态。客人点评页也要用它来判断"这台设备当前登录的当班工号"，
+  // 否则直接打开前台点评页时登录态为空，提交的评价不会归属到任何人。
+  loadSession()
   createApp(App).mount('#app')
   // 挂载后再探测自定义 LOGO，避免阻塞首屏
   resolveLogo()

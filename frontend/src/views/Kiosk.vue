@@ -1,12 +1,13 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { api } from '../api/http.js'
+import { auth } from '../utils/auth.js'
 
 // 酒店名称（后续可做成后台可配置）
 const HOTEL_NAME = '城市酒店'
 // LOGO 路径（默认随 GitHub Pages 子路径适配；若后台已上传自定义 LOGO 会自动替换）
 import { logoUrl } from '../utils/logo.js'
-// 房间号来自二维码链接 ?room=XXX（客房模式）；前台模式可不带，由客人/前台手动填
+// 房间号来自二维码链接 ?room=XXX（一房一码）；前台模式不带该参数，此时房间号记为「未指定」
 const params = new URLSearchParams(window.location.search)
 const roomFromUrl = params.get('room') || ''
 const isRoomMode = !!roomFromUrl
@@ -35,7 +36,10 @@ async function submit() {
       type: type.value,
       room: room.value || null,
       reasons: reasons.value,
-      staffUsername: null
+      // 归属当班工号：与旧系统一致，取自这台设备当前的登录状态。
+      // 客人用自己手机扫码时没有登录态 → 为 null，不影响提交，
+      // 只是这条评价不计入「按工号统计」（旧系统也是同样表现）。
+      staffUsername: auth.value.username || null
     })
     done.value = true
     reasons.value = []
