@@ -6,6 +6,7 @@ import {
   auth, loadSession, login, verify, logout, changePassword, isAdmin, isLoggedIn
 } from '../utils/auth.js'
 import StaffAdmin from '../components/StaffAdmin.vue'
+import SiteSettingsEditor from '../components/SiteSettingsEditor.vue'
 
 // ---------------- 登录 ----------------
 const loginForm = ref({ username: '', password: '' })
@@ -320,6 +321,9 @@ onMounted(async () => {
           </tbody>
         </table>
       </div>
+
+      <!-- 站点设置：仅管理员（改的是客人扫码后看到的内容） -->
+      <SiteSettingsEditor v-if="isAdmin()" />
 
       <!-- 账号管理：仅管理员 -->
       <StaffAdmin v-if="isAdmin()" />

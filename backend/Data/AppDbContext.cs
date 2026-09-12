@@ -10,10 +10,12 @@ public class AppDbContext : DbContext
     public DbSet<Review> Reviews => Set<Review>();
     public DbSet<Staff> Staffs => Set<Staff>();
     public DbSet<Session> Sessions => Set<Session>();
+    public DbSet<AppSettingsRow> AppSettings => Set<AppSettingsRow>();
 
     protected override void OnModelCreating(ModelBuilder mb)
     {
         mb.Entity<Staff>().HasIndex(s => s.Username).IsUnique();
         mb.Entity<Session>().HasKey(s => s.Token);
+        mb.Entity<AppSettingsRow>().ToTable("AppSettings");
     }
 }

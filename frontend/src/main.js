@@ -3,6 +3,7 @@ import App from './App.vue'
 import { applyConfig } from './api/http.js'
 import { resolveLogo } from './utils/logo.js'
 import { loadSession } from './utils/auth.js'
+import { loadSettings } from './utils/settings.js'
 
 // 运行时加载部署配置（public/config.js），自动适配 GitHub Pages 子路径；
 // 改后端地址只需编辑 config.js 并重新推送，无需重新构建源码。
@@ -25,6 +26,8 @@ async function boot() {
   createApp(App).mount('#app')
   // 挂载后再探测自定义 LOGO，避免阻塞首屏
   resolveLogo()
+  // 站点文案/选项配置同理：先以内置默认值渲染，拿到后台配置后自动刷新
+  loadSettings()
 }
 
 boot()

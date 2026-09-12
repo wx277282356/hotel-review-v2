@@ -149,6 +149,14 @@ using (var scope = app.Services.CreateScope())
             "ExpiresAt" timestamptz NOT NULL
         );
         """);
+    // 单行配置表：酒店名称/文案/好评差评原因列表（Data 是 SiteSettings 的 JSON）
+    db.Database.ExecuteSqlRaw("""
+        CREATE TABLE IF NOT EXISTS "AppSettings" (
+            "Id" integer PRIMARY KEY,
+            "Data" text NOT NULL,
+            "UpdatedAt" timestamptz NOT NULL DEFAULT now()
+        );
+        """);
 
     // 首次运行：用主令牌（AdminToken）作为初始密码，建一个超级管理员账号
     if (!db.Staffs.Any())
@@ -554,6 +562,47 @@ app.MapDelete("/api/settings/logo", async (string? token, AppDbContext db, IConf
         try { File.Delete(old); } catch { }
     }
     return Results.Ok(new { ok = true });
+});
+
+// ===== 可配置项（酒店名称 / 文案 / 好评与差评原因列表）=====
+
+// 开放读取：客人点评页要渲染它，不能要求令牌
+app.MapGet("/api/settings/public", async (AppDbContext db) =>
+{
+    var s = await SettingsStore.LoadAsync(db);
+    return Results.Ok(new
+    {
+        hotelName = s.HotelName,
+        hotelNameEn = s.HotelNameEn,
+        guestPrompt = s.GuestPrompt,
+        positiveMsg = s.PositiveMsg,
+        negativeMsg = s.NegativeMsg,
+        positiveReasons = s.PositiveReasons,
+        negativeReasons = s.NegativeReasons,
+    });
+});
+
+// 后台读取（需登录）。内容与公开接口一致，单独留这个入口是为了
+// 将来要放"非公开配置"时不必改动前端调用方式。
+app.MapGet("/api/settings", async (string? token, AppDbContext db, IConfiguration cfg) =>
+{
+    var me = await AuthUtil.ResolveAsync(token, db, cfg);
+    if (me == null) return Results.Unauthorized();
+    return Results.Ok(await SettingsStore.LoadAsync(db));
+});
+
+// 保存（仅管理员）
+app.MapPut("/api/settings", async (SiteSettings req, string? token, AppDbContext db, IConfiguration cfg) =>
+{
+    var me = await AuthUtil.ResolveAsync(token, db, cfg);
+    if (me == null) return Results.Unauthorized();
+    if (!me.IsAdmin) return Results.Json(new { error = "需要管理员权限" }, statusCode: 403);
+
+    var err = req.NormalizeAndValidate();
+    if (err != null) return Results.BadRequest(new { error = err });
+
+    await SettingsStore.SaveAsync(db, req);
+    return Results.Ok(await SettingsStore.LoadAsync(db));
 });
 
 app.Run();
