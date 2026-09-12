@@ -2,6 +2,9 @@
 import { ref, onMounted, computed } from 'vue'
 import { api } from '../api/http.js'
 
+// LOGO 路径（随 GitHub Pages 子路径自动适配）
+const logoUrl = import.meta.env.BASE_URL + 'logo.png'
+
 const token = ref(localStorage.getItem('admin_token') || '')
 const stats = ref(null)
 const reviews = ref([])
@@ -57,6 +60,10 @@ onMounted(() => { if (token.value) load() })
 
 <template>
   <div class="admin">
+    <div class="brand-head">
+      <img class="brand-logo" :src="logoUrl" alt="" />
+      <span>城市酒店 · 点评后台</span>
+    </div>
     <div class="token-bar">
       <input v-model="token" placeholder="管理员令牌" />
       <button @click="load">加载数据</button>
@@ -103,6 +110,8 @@ onMounted(() => { if (token.value) load() })
 </template>
 
 <style scoped>
+.brand-head { display:flex; align-items:center; gap:8px; font-weight:700; color:var(--gold); margin-bottom:12px; font-size:1.05rem; }
+.brand-head .brand-logo { width:28px; height:28px; border-radius:6px; }
 .token-bar { display:flex; gap:8px; margin-bottom:12px; }
 .token-bar input { flex:1; padding:10px; border:1px solid #ccc; border-radius:8px; }
 .token-bar button { padding:10px 16px; border:none; background:var(--gold); color:#fff; border-radius:8px; cursor:pointer; }

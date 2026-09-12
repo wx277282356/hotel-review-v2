@@ -4,6 +4,8 @@ import { api } from '../api/http.js'
 
 // 酒店名称（后续可做成后台可配置）
 const HOTEL_NAME = '城市酒店'
+// LOGO 路径（随 GitHub Pages 子路径自动适配）
+const logoUrl = import.meta.env.BASE_URL + 'logo.png'
 
 // 房间号来自二维码链接 ?room=XXX（客房模式）；前台模式可不带，由客人/前台手动填
 const params = new URLSearchParams(window.location.search)
@@ -50,7 +52,7 @@ async function submit() {
 <template>
   <div class="kiosk">
     <header class="brand">
-      <div class="logo">LOGO</div>
+      <div class="logo"><img :src="logoUrl" alt="城市酒店" /></div>
       <div class="name">{{ HOTEL_NAME }}</div>
       <div class="sub">请您为本次入住体验评分</div>
     </header>
@@ -86,7 +88,8 @@ async function submit() {
 <style scoped>
 .kiosk { display:flex; flex-direction:column; gap:18px; max-width:480px; margin:0 auto; }
 .brand { text-align:center; padding:8px 0 4px; }
-.logo { width:64px; height:64px; margin:0 auto 8px; border-radius:14px; background:linear-gradient(135deg,#e7c66a,#c9a84c); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:.8rem; }
+.logo { width:72px; height:72px; margin:0 auto 8px; border-radius:16px; background:linear-gradient(160deg,#e8c977,#c9a84c 50%,#8b6914); border:2px solid var(--gold); padding:8px; box-sizing:border-box; display:flex; align-items:center; justify-content:center; }
+.logo img { width:100%; height:100%; object-fit:contain; }
 .name { font-size:1.3rem; font-weight:700; color:#a07d1f; }
 .sub { font-size:.85rem; color:#888; margin-top:2px; }
 .row { display:flex; gap:12px; }

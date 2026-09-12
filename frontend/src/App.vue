@@ -12,12 +12,14 @@ const roomParam = params.get('room')
 const adminParam = params.get('admin')
 const guestMode = !!roomParam
 const view = ref(adminParam === '1' ? 'admin' : 'kiosk')
+// LOGO 路径（随 GitHub Pages 子路径自动适配）
+const logoUrl = import.meta.env.BASE_URL + 'logo.png'
 </script>
 
 <template>
   <div class="app">
     <header v-if="!guestMode" class="topbar">
-      <span class="brand">城市酒店 · 点评</span>
+      <span class="brand"><img class="brand-logo" :src="logoUrl" alt="" />城市酒店 · 点评</span>
       <nav>
         <button :class="{active: view==='kiosk'}" @click="view='kiosk'">点评台</button>
         <button :class="{active: view==='admin'}" @click="view='admin'">后台</button>
@@ -31,12 +33,13 @@ const view = ref(adminParam === '1' ? 'admin' : 'kiosk')
 </template>
 
 <style>
-:root { --gold:#c9a84c; --green:#2e9e5b; --red:#d9534f; }
+:root { --gold:#c9a84c; --green:#2d7a4a; --red:#8c3333; }
 * { box-sizing: border-box; }
 body { margin:0; font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; background:#f5f3ee; color:#333; }
 .app { max-width: 720px; margin: 0 auto; min-height: 100vh; }
 .topbar { display:flex; justify-content:space-between; align-items:center; padding:12px 16px; background:#fff; border-bottom:1px solid #eee; }
-.brand { font-weight:700; color:var(--gold); }
+.brand { font-weight:700; color:var(--gold); display:flex; align-items:center; }
+.brand-logo { width:24px; height:24px; border-radius:6px; margin-right:6px; }
 .topbar nav button { border:none; background:none; margin-left:12px; padding:6px 10px; cursor:pointer; color:#666; border-radius:6px; }
 .topbar nav button.active { background:var(--gold); color:#fff; }
 main { padding:16px; }

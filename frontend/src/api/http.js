@@ -1,6 +1,12 @@
 import axios from 'axios'
 
-// 开发期经 vite 代理（/api -> localhost:5188）；生产期改为后端真实地址
+// 默认走 vite 代理 /api（开发模式）；部署后由 public/config.js 的 apiBase 覆盖
 export const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE || '/api'
+  baseURL: '/api'
 })
+
+// 读取 public/config.js 设置的后端地址（含 /api 前缀），在 main.js 启动后调用
+export function applyConfig() {
+  const cfg = (typeof window !== 'undefined' && window.__APP_CONFIG__) || {}
+  if (cfg.apiBase) api.defaults.baseURL = cfg.apiBase
+}

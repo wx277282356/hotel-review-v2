@@ -2,6 +2,8 @@ import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 
 export default defineConfig({
+  // GitHub Pages 项目站点子路径（仓库名 hotel-review-v2）
+  base: '/hotel-review-v2/',
   plugins: [vue()],
   server: {
     port: 5173,
