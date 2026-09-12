@@ -14,10 +14,16 @@
       房间好评率 < 60% 显示红色（旧系统就是这个阈值）
     · 房间号筛选：只过滤下方"按房间统计"表（旧系统 renderReport 里 room 也只作用于这张表）
 
+  本版新增（B-7~B-10，均为对照清单已拍板的决策，无待定项）：
+    · B-7 近 7 天趋势图：固定展示最近 7 天（MM-DD 标签、7 根柱）
+    · B-8 好差评占比图：环形图（doughnut，cutout 65%，图例在下），取全量数据
+    · B-9 差评原因排行：序号 + 原因 + 进度条（宽度=次数/最大值）+ 次数；全量、次数降序；空态「暂无差评数据」
+    · B-10 差评房间预警：房间号/差评数/好评数/合计/差评率；取近 30 天、仅 negative>0、Top 10；
+      差评数 ≥3 的行浅红底；右侧固定文案「客房部重点关注」；空态「近30天无差评记录 🎉」
+
   ⚠️ **未复刻的一处旧系统缺陷**：旧系统报表页的「类型筛选 / 差评原因 / 操作工号」三个下拉
-  在 renderReport() 里被读进变量后**从未使用**（栅格摆设，选了什么都不会变）。
-  这里干脆不摆这三个空控件；要不要让它们真正生效（需要扩展统计接口支持按条件过滤）
-  已列入对照清单待你拍板。
+  在 renderReport() 里被读进变量后**从未使用**（栅格摆设）。这里干脆不摆这三个空控件；
+  要不要让它们真正生效已列入对照清单待你拍板（Q12）。
 -->
 <script setup>
 import { ref, computed, onMounted, watch, onBeforeUnmount, nextTick } from 'vue'
@@ -44,11 +50,18 @@ const room = ref('')
 const byPeriod = ref([])
 const byStaff = ref([])
 const byRoom = ref([])
+const byReason = ref([])           // B-9：差评原因排行
+const trend7 = ref([])             // B-7：近 7 天
+const overall = ref({ total: 0, positive: 0, negative: 0 })  // B-8：全量占比
 const loading = ref(false)
 const err = ref('')
 
 const canvas = ref(null)
+const canvasTrend = ref(null)
+const canvasRatio = ref(null)
 let chart = null
+let chartTrend = null
+let chartRatio = null
 
 const PERIOD_LABEL = { day: '按天', week: '按周', month: '按月' }
 
@@ -81,22 +94,47 @@ function tzMinutes() {
 const rate = (pos, total) => (total > 0 ? Math.round(pos / total * 100) : 0)
 const rateClass = r => (r < 60 ? 'red' : 'green')
 
+// B-9：最大次数（进度条基准）
+const maxReasonCount = computed(() => (byReason.value.length ? byReason.value[0].count : 0))
+const reasonPct = c => (maxReasonCount.value ? Math.round(c / maxReasonCount.value * 100) : 0)
+
+// B-10：差评房间预警（近 30 天、仅 negative>0、按差评数降序、Top 10）
+const warnRooms = computed(() =>
+  byRoom.value
+    .filter(r => r.negative > 0)
+    .sort((a, b) => b.negative - a.negative)
+    .slice(0, 10)
+)
+
 // ---------------- 数据 ----------------
 async function load() {
   err.value = ''
   loading.value = true
   try {
     const tk = { token: auth.value.token, ...dateParams() }
-    const [per, stf, rm] = await Promise.all([
+    const end = new Date()
+    const s7 = new Date()
+    s7.setDate(s7.getDate() - 6)
+    const t7params = {
+      token: auth.value.token, period: 'day', tz: tzMinutes(),
+      start: dayStart(fmtDateInput(s7)), end: dayEnd(fmtDateInput(end))
+    }
+    const [per, stf, rm, reason, ov, t7] = await Promise.all([
       api.get('/stats/by-period', { params: { ...tk, period: period.value, tz: tzMinutes() } }),
       api.get('/stats/by-staff', { params: tk }),
-      api.get('/stats/by-room', { params: tk })
+      api.get('/stats/by-room', { params: tk }),
+      api.get('/stats/by-reason', { params: tk }),
+      api.get('/stats', { params: { token: auth.value.token } }),
+      api.get('/stats/by-period', { params: t7params })
     ])
     byPeriod.value = per.data || []
     byStaff.value = stf.data || []
     byRoom.value = rm.data || []
+    byReason.value = reason.data || []
+    overall.value = ov.data || { total: 0, positive: 0, negative: 0 }
+    trend7.value = t7.data || []
     await nextTick()
-    drawChart()
+    drawCharts()
   } catch (e) {
     if (e.response?.status === 401) err.value = '登录已失效，请重新登录'
     else err.value = '加载失败：' + (e.response?.data?.error || e.message || '网络错误')
@@ -105,42 +143,72 @@ async function load() {
   }
 }
 
-async function drawChart() {
-  if (!canvas.value) return
-  const Chart = await getChart()
-  // 组件已卸载/图已被重画时丢弃这次结果，避免画到已销毁的 canvas 上
-  if (!canvas.value) return
-  if (chart) { chart.destroy(); chart = null }
-  // 图表配置与旧系统 renderReport 完全一致
-  chart = new Chart(canvas.value, {
+function barConfig(labels, pos, neg, legendTop = true) {
+  return {
     type: 'bar',
     data: {
-      labels: byPeriod.value.map(s => s.period),
+      labels,
       datasets: [
-        {
-          label: '好评',
-          data: byPeriod.value.map(s => s.positive),
-          backgroundColor: 'rgba(74,140,94,.75)',
-          borderRadius: 6
-        },
-        {
-          label: '差评',
-          data: byPeriod.value.map(s => s.negative),
-          backgroundColor: 'rgba(140,61,61,.75)',
-          borderRadius: 6
-        }
+        { label: '好评', data: pos, backgroundColor: 'rgba(74,140,94,.75)', borderRadius: 6 },
+        { label: '差评', data: neg, backgroundColor: 'rgba(140,61,61,.75)', borderRadius: 6 }
       ]
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      plugins: { legend: { position: 'top' } },
+      plugins: { legend: { position: legendTop ? 'top' : 'bottom' } },
       scales: {
         x: { stacked: false, grid: { display: false } },
         y: { beginAtZero: true, ticks: { precision: 0 } }
       }
     }
-  })
+  }
+}
+
+function doughnutConfig(pos, neg) {
+  return {
+    type: 'doughnut',
+    data: {
+      labels: ['好评', '差评'],
+      datasets: [{
+        data: [pos, neg],
+        backgroundColor: ['rgba(74,140,94,.8)', 'rgba(140,61,61,.8)'],
+        borderWidth: 0
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      cutout: '65%',
+      plugins: { legend: { position: 'bottom' } }
+    }
+  }
+}
+
+async function drawCharts() {
+  const Chart = await getChart()
+  if (canvas.value) {
+    if (chart) chart.destroy()
+    chart = new Chart(canvas.value, barConfig(
+      byPeriod.value.map(s => s.period),
+      byPeriod.value.map(s => s.positive),
+      byPeriod.value.map(s => s.negative)
+    ))
+  }
+  if (canvasTrend.value) {
+    if (chartTrend) chartTrend.destroy()
+    chartTrend = new Chart(canvasTrend.value, barConfig(
+      trend7.value.map(s => s.period.slice(5)),  // MM-DD
+      trend7.value.map(s => s.positive),
+      trend7.value.map(s => s.negative)
+    ))
+  }
+  if (canvasRatio.value) {
+    if (chartRatio) chartRatio.destroy()
+    chartRatio = new Chart(canvasRatio.value, doughnutConfig(
+      overall.value.positive, overall.value.negative
+    ))
+  }
 }
 
 // 汇总行：合计好评/差评/好评率（旧系统 rpt-summary 文案）
@@ -174,7 +242,11 @@ onMounted(() => {
   load()
 })
 
-onBeforeUnmount(() => { if (chart) chart.destroy() })
+onBeforeUnmount(() => {
+  if (chart) chart.destroy()
+  if (chartTrend) chartTrend.destroy()
+  if (chartRatio) chartRatio.destroy()
+})
 </script>
 
 <template>
@@ -210,7 +282,7 @@ onBeforeUnmount(() => { if (chart) chart.destroy() })
     <p v-if="err" class="err">{{ err }}</p>
 
     <div class="card">
-      <div class="card-title">统计图表</div>
+      <div class="card-title">统计图表（按所选周期）</div>
       <div class="chart-wrap">
         <canvas ref="canvas"></canvas>
       </div>
@@ -218,8 +290,23 @@ onBeforeUnmount(() => { if (chart) chart.destroy() })
     </div>
 
     <div class="card">
+      <div class="card-title">📅 近 7 天趋势 / Last 7 Days</div>
+      <div class="chart-wrap">
+        <canvas ref="canvasTrend"></canvas>
+      </div>
+      <p v-if="!trend7.length && !loading" class="empty">近 7 天暂无可统计的数据</p>
+    </div>
+
+    <div class="card">
+      <div class="card-title">🥧 好差评占比 / Ratio</div>
+      <div class="chart-wrap ratio">
+        <canvas ref="canvasRatio"></canvas>
+      </div>
+    </div>
+
+    <div class="card">
       <div class="card-head">
-        <span class="card-title">汇总数据</span>
+        <span class="card-title">汇总数据（按所选周期）</span>
         <span class="summary">{{ summary }}</span>
       </div>
       <div class="table-wrap">
@@ -236,6 +323,43 @@ onBeforeUnmount(() => { if (chart) chart.destroy() })
               <td><b class="green">{{ rate(s.positive, s.total) }}%</b></td>
             </tr>
             <tr v-if="!byPeriod.length"><td colspan="5" class="empty">暂无数据</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">🔻 差评原因排行 / Top Negative Reasons</div>
+      <div v-if="byReason.length" class="rank">
+        <div v-for="(r, i) in byReason" :key="r.reason" class="rank-row">
+          <span class="rank-idx">{{ i + 1 }}</span>
+          <span class="rank-name">{{ r.reason }}</span>
+          <span class="rank-bar"><i :style="{ width: reasonPct(r.count) + '%' }"></i></span>
+          <span class="rank-cnt">{{ r.count }}</span>
+        </div>
+      </div>
+      <p v-else class="empty">暂无差评数据</p>
+    </div>
+
+    <div class="card warn-card">
+      <div class="card-head">
+        <span class="card-title">🚨 差评房间预警 / Room Alerts</span>
+        <span class="side-note">客房部重点关注</span>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>房间号</th><th>差评数</th><th>好评数</th><th>合计</th><th>差评率</th></tr>
+          </thead>
+          <tbody>
+            <tr v-for="s in warnRooms" :key="s.room" :class="{ 'warn-row': s.negative >= 3 }">
+              <td><code class="code">{{ s.room }}</code></td>
+              <td><span class="badge negative">{{ s.negative }}</span></td>
+              <td><span class="badge positive">{{ s.positive }}</span></td>
+              <td>{{ s.total }}</td>
+              <td><b :class="rateClass(rate(s.positive, s.total))">{{ rate(s.positive, s.total) }}%</b></td>
+            </tr>
+            <tr v-if="!warnRooms.length"><td colspan="5" class="empty">近30天无差评记录 🎉</td></tr>
           </tbody>
         </table>
       </div>
@@ -318,6 +442,7 @@ onBeforeUnmount(() => { if (chart) chart.destroy() })
 .summary { font-size: .82rem; color: #777; }
 
 .chart-wrap { position: relative; height: 300px; }
+.chart-wrap.ratio { height: 240px; }
 
 .table-wrap { overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; }
@@ -332,4 +457,17 @@ td.name { font-weight: 600; color: #555; }
 .badge.negative { background: #fdecea; color: var(--red); }
 .green { color: var(--green); }
 .red { color: var(--red); }
+
+/* B-9 差评原因排行 */
+.rank { display: flex; flex-direction: column; gap: 9px; }
+.rank-row { display: flex; align-items: center; gap: 10px; font-size: .82rem; }
+.rank-idx { width: 18px; height: 18px; line-height: 18px; text-align: center; border-radius: 50%; background: #f0e9d8; color: #a07d1f; font-size: .7rem; flex-shrink: 0; }
+.rank-name { flex: 0 0 120px; color: #555; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rank-bar { flex: 1; height: 10px; background: #f0f0f0; border-radius: 6px; overflow: hidden; }
+.rank-bar i { display: block; height: 100%; background: linear-gradient(90deg, #c9a84c, #8b6914); }
+.rank-cnt { width: 30px; text-align: right; color: #888; flex-shrink: 0; }
+
+/* B-10 差评房间预警 */
+.warn-card .side-note { font-size: .78rem; color: #b06a3a; }
+.warn-row td { background: rgba(140, 61, 61, .12); }
 </style>
