@@ -1,0 +1,38 @@
+[
+  {
+    "id": 1715000000001,
+    "type": "positive",
+    "reasons": ["服务态度好", "房间干净"],
+    "room": "1208",
+    "staffUsername": "staff01",
+    "staffName": "前台小王",
+    "createdAt": "2026-03-15T09:12:33.000Z"
+  },
+  {
+    "id": 1715000000002,
+    "type": "negative",
+    "reasons": ["噪音大", "网络差"],
+    "room": "0905",
+    "staffUsername": "staff02",
+    "staffName": "前台小李",
+    "createdAt": "2026-04-02T21:45:10.000Z"
+  },
+  {
+    "id": 1715000000003,
+    "type": "positive",
+    "reasons": [],
+    "room": null,
+    "staffUsername": "",
+    "staffName": "",
+    "createdAt": "2026-05-20T14:03:00.000Z"
+  },
+  {
+    "id": 1715000000004,
+    "type": "negative",
+    "reasons": ["设施故障"],
+    "room": "1103",
+    "staffUsername": "staff01",
+    "staffName": "前台小王",
+    "createdAt": "2026-06-11T08:30:00.000Z"
+  }
+]
