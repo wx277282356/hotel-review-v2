@@ -8,5 +8,5 @@ window.__APP_CONFIG__ = {
   //  · 部署后：填 Cloudflare Tunnel 或客户域名给的 https 地址，例如
   //      'https://xxxx.trycloudflare.com/api'
   //      'https://review.客户域名.com/api'
-  apiBase: ''
+  apiBase: 'https://hang-epson-beer-operate.trycloudflare.com/api'
 };

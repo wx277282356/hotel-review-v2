@@ -21,3 +21,4 @@ backend/branding/
 # 敏感/本地
 .env
 *.log
+cloudflared.exe
