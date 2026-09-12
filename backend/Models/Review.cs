@@ -14,5 +14,10 @@ public class Review
     public List<string> Reasons { get; set; } = new();
     public string? Room { get; set; }
     public string? StaffUsername { get; set; }
+
+    // 提交时的员工姓名（旧系统也有这个字段，用在明细的"操作工号"列与按工号统计里）。
+    // 与 StaffUsername 一样允许为空：客人自己手机扫码提交时没有登录态。
+    public string? StaffName { get; set; }
+
     public DateTime CreatedAt { get; set; }
 }

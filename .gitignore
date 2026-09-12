@@ -4,6 +4,10 @@ obj/
 *.user
 appsettings.Development.json
 
+# 临时编译/验证输出目录（dotnet build -o 用，绝不提交）
+_runcheck/
+_buildcheck/
+
 # Node / Vue
 node_modules/
 dist/

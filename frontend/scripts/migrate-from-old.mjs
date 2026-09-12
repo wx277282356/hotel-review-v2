@@ -125,7 +125,11 @@ function toRecord(r) {
   return {
     type,
     room: String(r.room ?? r['房间号'] ?? '').trim() || null,
-    staffUsername: String(r.staffUsername ?? r.staffName ?? r['操作工号'] ?? '').trim() || null,
+    // 「操作工号」与「员工姓名」是两个字段，别混在一起：
+    // 工号是登录账号（按工号统计的分组键），姓名是当时那个人叫什么（明细第二行显示）。
+    // 早前版本把姓名当工号兜底，会把姓名显示成工号 —— 现在分开存。
+    staffUsername: String(r.staffUsername ?? r['操作工号'] ?? '').trim() || null,
+    staffName: String(r.staffName ?? r['员工姓名'] ?? '').trim() || null,
     reasons: normalizeReasons(r.reasons ?? r['差评原因']),
     createdAt,
   }
@@ -230,6 +234,7 @@ function loadCsv(p) {
     type: header.findIndex(h => h.includes('类型') || h.includes('评价')),
     reasons: header.findIndex(h => h.includes('原因')),
     staff: header.findIndex(h => h.includes('工号')),
+    name: header.findIndex(h => h.includes('姓名')),
   }
   return body
     .filter(r => r.some(c => String(c).trim() !== ''))
@@ -237,7 +242,7 @@ function loadCsv(p) {
       const get = (i) => (i >= 0 ? r[i] : '')
       return toRecord({
         createdAt: get(idx.time), room: get(idx.room), type: get(idx.type),
-        reasons: get(idx.reasons), staffUsername: get(idx.staff),
+        reasons: get(idx.reasons), staffUsername: get(idx.staff), staffName: get(idx.name),
       })
     })
 }
@@ -323,11 +328,11 @@ async function main() {
   }
 
   // 真正写库
-  const sql = `INSERT INTO "Reviews" ("Id", "Type", "Reasons", "Room", "StaffUsername", "CreatedAt")
-               VALUES ($1, $2, $3, $4, $5, $6)`
+  const sql = `INSERT INTO "Reviews" ("Id", "Type", "Reasons", "Room", "StaffUsername", "StaffName", "CreatedAt")
+               VALUES ($1, $2, $3, $4, $5, $6, $7)`
   let ok = 0
   for (const r of fresh) {
-    await client.query(sql, [randomUUID(), r.type, r.reasons, r.room, r.staffUsername, r.createdAt])
+    await client.query(sql, [randomUUID(), r.type, r.reasons, r.room, r.staffUsername, r.staffName, r.createdAt])
     ok++
   }
   const after = await client.query('SELECT count(*)::int AS n FROM "Reviews"')

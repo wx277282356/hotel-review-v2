@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { api } from '../api/http.js'
 import { logoUrl, resolveLogo, bumpLogoVersion } from '../utils/logo.js'
 import {
@@ -7,6 +7,8 @@ import {
 } from '../utils/auth.js'
 import StaffAdmin from '../components/StaffAdmin.vue'
 import SiteSettingsEditor from '../components/SiteSettingsEditor.vue'
+import ReviewRecords from '../components/ReviewRecords.vue'
+import StatsReport from '../components/StatsReport.vue'
 import { settings } from '../utils/settings.js'
 
 // ---------------- 登录 ----------------
@@ -55,41 +57,65 @@ async function doTokenLogin() {
 async function doLogout() {
   await logout()
   stats.value = null
-  reviews.value = []
   statsByRoom.value = []
   statsByStaff.value = []
+  page.value = 'dashboard'
 }
+
+// ---------------- 页面导航 ----------------
+// 与旧系统后台的侧边导航同构（旧 admin.html 的 nav-item：数据看板 / 统计报表 / 评价记录 /
+// 系统设置 / 账号管理，其中后两项仅管理员可见）。
+// 旧系统页面标题栏显示的文字也按这张表来。
+const PAGE_TITLES = {
+  dashboard: '数据看板',
+  report: '统计报表',
+  records: '评价记录',
+  settings: '系统设置',
+  users: '账号管理'
+}
+const page = ref('dashboard')
+const tabs = computed(() => {
+  const list = [
+    { key: 'dashboard', label: '数据看板', icon: '📊' },
+    { key: 'report', label: '统计报表', icon: '📈' },
+    { key: 'records', label: '评价记录', icon: '📋' }
+  ]
+  if (isAdmin()) {
+    list.push({ key: 'settings', label: '系统设置', icon: '⚙️' })
+    list.push({ key: 'users', label: '账号管理', icon: '👤' })
+  }
+  return list
+})
+// 非管理员（或登录态变化后）不能停在仅管理员页面
+watch(page, async () => {
+  if (!isAdmin() && (page.value === 'settings' || page.value === 'users')) page.value = 'dashboard'
+})
 
 // ---------------- 数据 ----------------
 const stats = ref(null)
-const reviews = ref([])
 const statsByRoom = ref([])
 const statsByStaff = ref([])
 const error = ref('')
 const loading = ref(false)
-const filterType = ref('all')
-
-const filtered = computed(() => {
-  if (filterType.value === 'all') return reviews.value
-  return reviews.value.filter(r => r.type === filterType.value)
-})
 
 function tk() {
   return 'token=' + encodeURIComponent(auth.value.token)
 }
 
+// 看板只取汇总数据。
+// 旧系统看板是"把 localStorage 里的评价全读出来再在前端算"，评价多了会卡；
+// 这里改成只问后端要汇总结果，页面上不再全量拉评价明细
+// （要看明细去「评价记录」页，那里是服务端分页查询）。
 async function load() {
   error.value = ''
   loading.value = true
   try {
-    const [s, r, byRoom, byStaff] = await Promise.all([
+    const [s, byRoom, byStaff] = await Promise.all([
       api.get('/stats?' + tk()),
-      api.get('/reviews?' + tk()),
       api.get('/stats/by-room?' + tk()),
       api.get('/stats/by-staff?' + tk())
     ])
     stats.value = s.data
-    reviews.value = r.data
     statsByRoom.value = byRoom.data
     statsByStaff.value = byStaff.data
   } catch (e) {
@@ -107,25 +133,6 @@ async function load() {
 async function afterLogin() {
   await load()
   await resolveLogo()
-}
-
-function exportCsv() {
-  if (!reviews.value.length) return
-  const header = ['时间', '类型', '房间', '原因', '员工']
-  const rows = reviews.value.map(r => [
-    new Date(r.createdAt).toLocaleString(),
-    r.type === 'positive' ? '好评' : '差评',
-    r.room || '',
-    (r.reasons || []).join('/'),
-    r.staffUsername || ''
-  ])
-  const csv = [header, ...rows].map(row => row.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\r\n')
-  const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' })
-  const a = document.createElement('a')
-  a.href = URL.createObjectURL(blob)
-  a.download = '评价数据_' + new Date().toISOString().slice(0, 10) + '.csv'
-  a.click()
-  URL.revokeObjectURL(a.href)
 }
 
 // ---------------- LOGO（仅管理员）----------------
@@ -244,90 +251,91 @@ onMounted(async () => {
 
       <p v-if="error" class="err">{{ error }}</p>
 
-      <!-- LOGO 配置：仅管理员 -->
-      <div v-if="isAdmin()" class="brand-set">
-        <div class="brand-set-head">🏨 品牌 LOGO（酒店可自行上传更换）</div>
-        <div class="brand-set-body">
-          <img class="brand-preview" :src="logoUrl" alt="当前 LOGO" />
-          <div class="brand-actions">
-            <label class="file-btn">
-              {{ logoBusy ? '处理中…' : '选择图片并上传' }}
-              <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" :disabled="logoBusy" @change="onLogoPick" />
-            </label>
-            <button class="ghost-btn" :disabled="logoBusy" @click="resetLogo">恢复默认</button>
+      <!-- 页面标题 + 导航：与旧系统后台的导航同构 -->
+      <div class="page-title">{{ PAGE_TITLES[page] }}</div>
+      <nav class="nav">
+        <button
+          v-for="t in tabs"
+          :key="t.key"
+          class="nav-item"
+          :class="{ on: page === t.key }"
+          @click="page = t.key"
+        >
+          <span class="nav-ico">{{ t.icon }}</span>{{ t.label }}
+        </button>
+      </nav>
+
+      <!-- ============ 数据看板 ============ -->
+      <div v-if="page === 'dashboard'">
+        <div v-if="stats" class="cards">
+          <div class="card"><b>{{ stats.total }}</b><span>总评价</span></div>
+          <div class="card green"><b>{{ stats.positive }}</b><span>好评</span></div>
+          <div class="card red"><b>{{ stats.negative }}</b><span>差评</span></div>
+          <div class="card"><b>{{ stats.positiveRate }}%</b><span>好评率</span></div>
+        </div>
+
+        <p class="readonly">🔒 评价数据只读，任何人都不可删除</p>
+
+        <div v-if="statsByRoom.length" class="breakdown">
+          <h3>📊 按房间统计（差评优先）</h3>
+          <table>
+            <thead><tr><th>房间</th><th>总数</th><th>好评</th><th>差评</th></tr></thead>
+            <tbody>
+              <tr v-for="x in statsByRoom" :key="x.room">
+                <td>{{ x.room }}</td><td>{{ x.total }}</td>
+                <td class="green">{{ x.positive }}</td><td class="red">{{ x.negative }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div v-if="statsByStaff.length" class="breakdown">
+          <h3>📊 按员工工号统计</h3>
+          <table>
+            <thead><tr><th>工号</th><th>姓名</th><th>总数</th><th>好评</th><th>差评</th></tr></thead>
+            <tbody>
+              <tr v-for="x in statsByStaff" :key="x.staff">
+                <td>{{ x.staff }}</td><td>{{ x.name || '-' }}</td><td>{{ x.total }}</td>
+                <td class="green">{{ x.positive }}</td><td class="red">{{ x.negative }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p v-if="!loading && stats && !stats.total" class="empty">暂无数据</p>
+      </div>
+
+      <!-- ============ 统计报表 ============ -->
+      <StatsReport v-else-if="page === 'report'" />
+
+      <!-- ============ 评价记录 ============ -->
+      <ReviewRecords v-else-if="page === 'records'" />
+
+      <!-- ============ 系统设置（仅管理员） ============ -->
+      <div v-else-if="page === 'settings'">
+        <!-- LOGO 配置 -->
+        <div class="brand-set">
+          <div class="brand-set-head">🏨 品牌 LOGO（酒店可自行上传更换）</div>
+          <div class="brand-set-body">
+            <img class="brand-preview" :src="logoUrl" alt="当前 LOGO" />
+            <div class="brand-actions">
+              <label class="file-btn">
+                {{ logoBusy ? '处理中…' : '选择图片并上传' }}
+                <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" :disabled="logoBusy" @change="onLogoPick" />
+              </label>
+              <button class="ghost-btn" :disabled="logoBusy" @click="resetLogo">恢复默认</button>
+            </div>
+            <p class="brand-hint">支持 png / jpg / webp / gif，建议正方形、不超过 2MB。上传后客人扫码页与后台会同步生效。</p>
+            <p v-if="logoMsg" class="brand-msg">{{ logoMsg }}</p>
           </div>
-          <p class="brand-hint">支持 png / jpg / webp / gif，建议正方形、不超过 2MB。上传后客人扫码页与后台会同步生效。</p>
-          <p v-if="logoMsg" class="brand-msg">{{ logoMsg }}</p>
         </div>
+
+        <!-- 站点设置：改的是客人扫码后看到的内容 -->
+        <SiteSettingsEditor />
       </div>
 
-      <div v-if="stats" class="cards">
-        <div class="card"><b>{{ stats.total }}</b><span>总评价</span></div>
-        <div class="card green"><b>{{ stats.positive }}</b><span>好评</span></div>
-        <div class="card red"><b>{{ stats.negative }}</b><span>差评</span></div>
-        <div class="card"><b>{{ stats.positiveRate }}%</b><span>好评率</span></div>
-      </div>
-
-      <div v-if="reviews.length" class="toolbar">
-        <div class="filters">
-          <button :class="{on:filterType==='all'}" @click="filterType='all'">全部</button>
-          <button :class="{on:filterType==='positive'}" @click="filterType='positive'">只看好评</button>
-          <button :class="{on:filterType==='negative'}" @click="filterType='negative'">只看差评</button>
-        </div>
-        <button class="export" @click="exportCsv">导出 CSV</button>
-      </div>
-
-      <p class="readonly">🔒 评价数据只读，任何人都不可删除</p>
-
-      <div v-if="filtered.length" class="table-wrap">
-        <table>
-          <thead>
-            <tr><th>时间</th><th>类型</th><th>房间</th><th>原因</th><th>员工</th></tr>
-          </thead>
-          <tbody>
-            <tr v-for="r in filtered" :key="r.id">
-              <td class="t">{{ new Date(r.createdAt).toLocaleString() }}</td>
-              <td><span class="badge" :class="r.type === 'positive' ? 'positive' : 'negative'">{{ r.type === 'positive' ? '好评' : '差评' }}</span></td>
-              <td>{{ r.room || '-' }}</td>
-              <td>{{ (r.reasons || []).join('、') || '-' }}</td>
-              <td>{{ r.staffUsername || '-' }}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <p v-else-if="!loading && stats" class="empty">暂无数据</p>
-
-      <div v-if="statsByRoom.length" class="breakdown">
-        <h3>📊 按房间统计（差评优先）</h3>
-        <table>
-          <thead><tr><th>房间</th><th>总数</th><th>好评</th><th>差评</th></tr></thead>
-          <tbody>
-            <tr v-for="x in statsByRoom" :key="x.room">
-              <td>{{ x.room }}</td><td>{{ x.total }}</td>
-              <td class="green">{{ x.positive }}</td><td class="red">{{ x.negative }}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <div v-if="statsByStaff.length" class="breakdown">
-        <h3>📊 按员工工号统计</h3>
-        <table>
-          <thead><tr><th>工号</th><th>总数</th><th>好评</th><th>差评</th></tr></thead>
-          <tbody>
-            <tr v-for="x in statsByStaff" :key="x.staff">
-              <td>{{ x.staff }}</td><td>{{ x.total }}</td>
-              <td class="green">{{ x.positive }}</td><td class="red">{{ x.negative }}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <!-- 站点设置：仅管理员（改的是客人扫码后看到的内容） -->
-      <SiteSettingsEditor v-if="isAdmin()" />
-
-      <!-- 账号管理：仅管理员 -->
-      <StaffAdmin v-if="isAdmin()" />
+      <!-- ============ 账号管理（仅管理员） ============ -->
+      <StaffAdmin v-else-if="page === 'users'" />
     </template>
   </div>
 </template>
@@ -362,11 +370,14 @@ onMounted(async () => {
 .card.green b { color:var(--green); }
 .card.red b { color:var(--red); }
 
-.toolbar { display:flex; justify-content:space-between; align-items:center; margin:10px 0; gap:8px; flex-wrap:wrap; }
-.filters { display:flex; gap:6px; }
-.filters button { padding:6px 12px; border:1px solid #ddd; background:#fff; border-radius:8px; font-size:.8rem; color:#666; cursor:pointer; }
-.filters button.on { background:var(--gold); color:#fff; border-color:var(--gold); }
-.export { padding:6px 14px; border:none; border-radius:8px; background:var(--green); color:#fff; font-size:.8rem; cursor:pointer; }
+/* 页面标题 + 导航（对应旧系统后台的侧边导航条） */
+.page-title { font-size:1rem; font-weight:700; color:#4a3a28; margin:4px 0 8px; }
+.nav { display:flex; gap:6px; flex-wrap:wrap; background:#fff; border:1px solid #eee; border-radius:10px; padding:6px; margin-bottom:12px; }
+.nav-item { display:flex; align-items:center; gap:5px; padding:7px 13px; border:none; background:transparent; border-radius:8px; font-size:.82rem; color:#777; cursor:pointer; }
+.nav-item:hover { background:#faf7f2; }
+.nav-item.on { background:var(--gold); color:#fff; font-weight:600; }
+.nav-ico { font-size:.9rem; }
+
 .readonly { font-size:.75rem; color:#999; margin:6px 0 10px; }
 
 .table-wrap { overflow-x:auto; background:#fff; border:1px solid #eee; border-radius:10px; }
