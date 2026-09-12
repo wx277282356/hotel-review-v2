@@ -5,12 +5,28 @@ using HotelReview.Api.Auth;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// 真实密钥（数据库密码、管理员令牌）放 appsettings.Local.json，该文件已被 .gitignore 排除。
+// 本文件 appsettings.json 只保留模板占位符，可安全提交到公开仓库。
+builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: false);
+
+// 启动前置校验：连接串没配好就明确报错，而不是跑起来后连不上库
+var connStr = builder.Configuration.GetConnectionString("DefaultConnection");
+if (string.IsNullOrWhiteSpace(connStr) || connStr.Contains("CHANGE_ME"))
+{
+    Console.WriteLine("======================================================");
+    Console.WriteLine(" ✗ 数据库连接串未配置！");
+    Console.WriteLine("   请把 backend/appsettings.json 复制一份为");
+    Console.WriteLine("   backend/appsettings.Local.json，并在其中填入真实密码。");
+    Console.WriteLine("   （appsettings.Local.json 不会提交到 Git）");
+    Console.WriteLine("======================================================");
+    return;
+}
+
 // 后端监听端口（前端 vite 代理指向这里）
 builder.WebHost.UseUrls("http://localhost:5188");
 
-// PostgreSQL 连接（连接串在 appsettings.json 的 ConnectionStrings:DefaultConnection）
-builder.Services.AddDbContext<AppDbContext>(opt =>
-    opt.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+// PostgreSQL 连接
+builder.Services.AddDbContext<AppDbContext>(opt => opt.UseNpgsql(connStr));
 
 builder.Services.AddCors();
 builder.Services.AddEndpointsApiExplorer();
@@ -58,12 +74,20 @@ using (var scope = app.Services.CreateScope())
     // 首次运行：用主令牌（AdminToken）作为初始密码，建一个超级管理员账号
     if (!db.Staffs.Any())
     {
-        var initialPwd = config["AdminToken"] ?? "HotelReview2026";
+        // 不硬编码任何默认密码：未配置 AdminToken 时随机生成并在控制台打印，
+        // 避免"提交到公开仓库的默认口令"变成后门。
+        var initialPwd = config["AdminToken"];
+        var generated = false;
+        if (string.IsNullOrWhiteSpace(initialPwd) || initialPwd.Contains("CHANGE_ME"))
+        {
+            initialPwd = AuthUtil.NewToken();
+            generated = true;
+        }
         db.Staffs.Add(new Staff
         {
             Id = Guid.NewGuid(),
             Username = "admin",
-            PasswordHash = AuthUtil.HashPassword(initialPwd),
+            PasswordHash = AuthUtil.HashPassword(initialPwd!),
             DisplayName = "超级管理员",
             Role = "admin",
             IsActive = true,
@@ -72,7 +96,15 @@ using (var scope = app.Services.CreateScope())
         db.SaveChanges();
         Console.WriteLine("======================================================");
         Console.WriteLine(" 已创建初始管理员账号：用户名 admin");
-        Console.WriteLine($" 初始密码 = appsettings.json 里的 AdminToken（当前：{initialPwd}）");
+        if (generated)
+        {
+            Console.WriteLine(" ⚠ 未配置 AdminToken，已随机生成本次初始密码（仅显示这一次）：");
+            Console.WriteLine($"   {initialPwd}");
+        }
+        else
+        {
+            Console.WriteLine(" 初始密码 = appsettings.Local.json 里的 AdminToken");
+        }
         Console.WriteLine(" 请登录后立即在「账号管理」里修改密码！");
         Console.WriteLine("======================================================");
     }

@@ -22,3 +22,7 @@ backend/branding/
 .env
 *.log
 cloudflared.exe
+
+# 本地真实密钥（数据库密码、管理员令牌）——绝不提交
+appsettings.Local.json
+appsettings.*.Local.json
