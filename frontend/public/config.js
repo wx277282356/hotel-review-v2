@@ -1,6 +1,13 @@
 // ============================================================
 //  部署配置文件（运行时读取，改这里【无需】重新 npm run build）
 //  改完把前端重新推送到 GitHub Pages 即生效。
+//
+//  注意：仓库里这一行**故意留空**。
+//  临时隧道地址每次重启都会变，写进仓库的话第二天就是一条死地址，
+//  所以生产地址不由人手工维护，而是由「一键启动」自动填：
+//    node scripts/start-all.mjs  （或双击根目录 一键启动.bat）
+//  它会抓到当次隧道地址 → 写进本文件第 11 行 → 自动重新发布。
+//  只有手工排查时，才需要自己改下面这一行。
 // ============================================================
 window.__APP_CONFIG__ = {
   // 后端公网地址（必须含 /api 前缀）：
@@ -8,5 +15,5 @@ window.__APP_CONFIG__ = {
   //  · 部署后：填 Cloudflare Tunnel 或客户域名给的 https 地址，例如
   //      'https://xxxx.trycloudflare.com/api'
   //      'https://review.客户域名.com/api'
-  apiBase: 'https://experience-rows-intention-fairfield.trycloudflare.com/api'
+  apiBase: ''
 };
