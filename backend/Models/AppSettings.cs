@@ -25,6 +25,14 @@ public class SiteSettings
     public string NegativeMsg { get; set; } = "已收到您的反馈，我们会立即改进！";
 
     /// <summary>
+    /// Q14 扩展：上面三条内容型文案的英文版。仅 lang=en/both 时使用；留空则回退中文。
+    /// 后台可分别配置，让 "en / both" 模式连提示语、感谢语也真正双语，而非只有 UI 框架文案双语。
+    /// </summary>
+    public string GuestPromptEn { get; set; } = "";
+    public string PositiveMsgEn { get; set; } = "";
+    public string NegativeMsgEn { get; set; } = "";
+
+    /// <summary>
     /// 客人提交后感谢页自动返回的秒数（旧系统叫 autoReturn）。
     /// 范围 2–10，超出自动钳制；默认 4。前端倒计时文案用到它。
     /// </summary>
@@ -64,6 +72,9 @@ public class SiteSettings
         GuestPrompt = (GuestPrompt ?? "").Trim();
         PositiveMsg = (PositiveMsg ?? "").Trim();
         NegativeMsg = (NegativeMsg ?? "").Trim();
+        GuestPromptEn = (GuestPromptEn ?? "").Trim();
+        PositiveMsgEn = (PositiveMsgEn ?? "").Trim();
+        NegativeMsgEn = (NegativeMsgEn ?? "").Trim();
 
         if (HotelName.Length == 0) return "酒店名称不能为空";
         if (HotelName.Length > MaxNameLength) return $"酒店名称不能超过 {MaxNameLength} 个字";
@@ -71,6 +82,9 @@ public class SiteSettings
         if (GuestPrompt.Length > MaxTextLength) return $"客人页提示语不能超过 {MaxTextLength} 个字";
         if (PositiveMsg.Length > MaxTextLength) return $"好评提示语不能超过 {MaxTextLength} 个字";
         if (NegativeMsg.Length > MaxTextLength) return $"差评提示语不能超过 {MaxTextLength} 个字";
+        if (GuestPromptEn.Length > MaxTextLength) return $"英文提示语不能超过 {MaxTextLength} 个字";
+        if (PositiveMsgEn.Length > MaxTextLength) return $"英文好评语不能超过 {MaxTextLength} 个字";
+        if (NegativeMsgEn.Length > MaxTextLength) return $"英文差评语不能超过 {MaxTextLength} 个字";
 
         // 自动返回秒数：钳制到 2–10（旧系统的可设范围）
         if (AutoReturn < 2) AutoReturn = 2;

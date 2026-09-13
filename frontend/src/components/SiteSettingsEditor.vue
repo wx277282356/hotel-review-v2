@@ -14,6 +14,9 @@ const form = ref({
   guestPrompt: '',
   positiveMsg: '',
   negativeMsg: '',
+  guestPromptEn: '',
+  positiveMsgEn: '',
+  negativeMsgEn: '',
   autoReturn: 4,
   negativeReasonsText: '',
   lang: 'zh',
@@ -35,6 +38,9 @@ async function load() {
       guestPrompt: d.guestPrompt || '',
       positiveMsg: d.positiveMsg || '',
       negativeMsg: d.negativeMsg || '',
+      guestPromptEn: d.guestPromptEn || '',
+      positiveMsgEn: d.positiveMsgEn || '',
+      negativeMsgEn: d.negativeMsgEn || '',
       autoReturn: Number(d.autoReturn) || 4,
       negativeReasonsText: (d.negativeReasons || []).join('\n'),
       lang: d.lang === 'en' || d.lang === 'both' ? d.lang : 'zh',
@@ -67,6 +73,9 @@ async function save() {
       guestPrompt: form.value.guestPrompt,
       positiveMsg: form.value.positiveMsg,
       negativeMsg: form.value.negativeMsg,
+      guestPromptEn: (form.value.guestPromptEn || '').trim(),
+      positiveMsgEn: (form.value.positiveMsgEn || '').trim(),
+      negativeMsgEn: (form.value.negativeMsgEn || '').trim(),
       autoReturn: Number(form.value.autoReturn) || 4,
       negativeReasons: toList(form.value.negativeReasonsText),
       lang: form.value.lang,
@@ -109,6 +118,10 @@ onMounted(load)
       <span>客人页顶部提示语</span>
       <input v-model="form.guestPrompt" maxlength="60" placeholder="请您为本次入住体验评分" />
     </label>
+    <label>
+      <span>顶部提示语（英文）<em>lang=en/both 时显示；留空则沿用中文</em></span>
+      <input v-model="form.guestPromptEn" maxlength="60" placeholder="Please rate your stay" />
+    </label>
 
     <div class="grid">
       <label>
@@ -118,6 +131,16 @@ onMounted(load)
       <label>
         <span>提交差评后显示的话</span>
         <input v-model="form.negativeMsg" maxlength="60" placeholder="已收到您的反馈，我们会立即改进！" />
+      </label>
+    </div>
+    <div class="grid">
+      <label>
+        <span>好评语（英文）<em>留空沿用中文</em></span>
+        <input v-model="form.positiveMsgEn" maxlength="60" placeholder="Thank you for your feedback!" />
+      </label>
+      <label>
+        <span>差评语（英文）<em>留空沿用中文</em></span>
+        <input v-model="form.negativeMsgEn" maxlength="60" placeholder="We have received your feedback and will improve." />
       </label>
     </div>
 

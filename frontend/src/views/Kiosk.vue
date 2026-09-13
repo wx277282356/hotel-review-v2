@@ -3,7 +3,7 @@ import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { api } from '../api/http.js'
 import { auth } from '../utils/auth.js'
 import { settings } from '../utils/settings.js'
-import { t } from '../utils/i18n.js'
+import { t, tc } from '../utils/i18n.js'
 // LOGO 路径（默认随 GitHub Pages 子路径适配；若后台已上传自定义 LOGO 会自动替换）
 import { logoUrl } from '../utils/logo.js'
 
@@ -31,7 +31,9 @@ const showNegative = computed(() => type.value === 'negative' && !done.value)
 // 差评才展示原因选项；好评一键提交，不存在任何原因选择 UI
 const negativeOptions = computed(() => settings.value.negativeReasons || [])
 const thanksMsg = computed(() =>
-  type.value === 'positive' ? settings.value.positiveMsg : settings.value.negativeMsg
+  type.value === 'positive'
+    ? tc(settings.value.positiveMsg, settings.value.positiveMsgEn)
+    : tc(settings.value.negativeMsg, settings.value.negativeMsgEn)
 )
 // 感谢屏图形：好评=金色五角星、差评=机器人头像（K-16，图形与旧版一致；中英双语待 Q14）
 const isPositive = computed(() => type.value === 'positive')
@@ -64,7 +66,7 @@ function speakWelcome() {
     const u = window.speechSynthesis
     if (!u) return
     u.cancel() // 避免与上一段叠音
-    const text = `${settings.value.hotelName}，${settings.value.guestPrompt || ''}`.trim()
+    const text = `${settings.value.hotelName}，${tc(settings.value.guestPrompt, settings.value.guestPromptEn) || ''}`.trim()
     const utt = new SpeechSynthesisUtterance(text)
     utt.lang = settings.value.lang === 'en' ? 'en-US' : 'zh-CN'
     u.speak(utt)
@@ -185,7 +187,7 @@ onBeforeUnmount(() => {
       <div class="titles">
         <div class="name">{{ settings.hotelName }}</div>
         <div v-if="settings.hotelNameEn" class="name-en">{{ settings.hotelNameEn }}</div>
-        <div class="sub">{{ settings.guestPrompt }}</div>
+        <div class="sub">{{ tc(settings.guestPrompt, settings.guestPromptEn) }}</div>
       </div>
       <div class="clock" aria-hidden="true">{{ now }}</div>
     </header>

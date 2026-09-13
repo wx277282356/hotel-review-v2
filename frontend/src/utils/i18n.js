@@ -18,3 +18,19 @@ export function t(zh, en) {
   if (lang === 'both') return `${zh} / ${en}`
   return zh
 }
+
+// ============================================================
+//  内容型文案翻译（英文版来自后台配置，不是写死的）。
+//  tc(zh, en)：
+//    · lang = 'zh'  → 中文
+//    · lang = 'en'  → 英文（en 为空则回退中文）
+//    · lang = 'both'→ 中文 / 英文（英文为空则只显示中文）
+//  用于顶部提示语、好评/差评感谢语这类后台配置的内容。
+// ============================================================
+export function tc(zh, en) {
+  const lang = settings.value?.lang || 'zh'
+  const e = (en && typeof en === 'string' && en.trim()) ? en.trim() : (zh || '')
+  if (lang === 'en') return e
+  if (lang === 'both') return e === zh ? zh : `${zh} / ${e}`
+  return zh
+}
