@@ -1,6 +1,10 @@
 // ============================================================
 //  旧系统评价 → 新 PostgreSQL 迁移脚本（保留原始提交时间）
 //
+//  ⚠️ 已弃用（2026-09-13）：客户决定不迁移旧数据，新系统从零开始累积统计。
+//     本脚本保留仅作技术存档，不再执行。上线前清测试数据请用：
+//       node scripts/reset-reviews.mjs --commit
+//
 //  用法：
 //    node scripts/migrate-from-old.mjs <导出的文件>            ← 预演，不写库
 //    node scripts/migrate-from-old.mjs <导出的文件> --commit    ← 正式导入
