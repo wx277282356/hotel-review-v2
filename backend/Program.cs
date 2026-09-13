@@ -724,6 +724,8 @@ app.MapGet("/api/settings/public", async (AppDbContext db) =>
         positiveReasons = s.PositiveReasons,
         negativeReasons = s.NegativeReasons,
         autoReturn = s.AutoReturn,
+        lang = s.Lang,
+        voiceEnabled = s.VoiceEnabled,
     });
 });
 

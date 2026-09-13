@@ -30,6 +30,19 @@ public class SiteSettings
     /// </summary>
     public int AutoReturn { get; set; } = 4;
 
+    /// <summary>
+    /// Q14：客人页界面语言。'zh' = 仅中文（默认）；'en' = 仅英文；'both' = 中英同屏。
+    /// 仅影响前端固定 UI 文案（按钮/弹窗标题等），后台配置的内容型文案（提示语/原因/感谢语）
+    /// 仍按管理员填写原文显示，因为这些没有翻译来源。
+    /// </summary>
+    public string Lang { get; set; } = "zh";
+
+    /// <summary>
+    /// Q13：语音播报开关。默认关；后台可开。开启后客人页 30 秒首次播报欢迎语、
+    /// 之后每 60 秒重复一次（用浏览器 SpeechSynthesis，无需后端资源）。
+    /// </summary>
+    public bool VoiceEnabled { get; set; } = false;
+
     public List<string> PositiveReasons { get; set; } = new()
     {
         "服务态度好", "房间干净", "设施完善", "位置方便", "性价比高", "早餐丰富"
@@ -62,6 +75,9 @@ public class SiteSettings
         // 自动返回秒数：钳制到 2–10（旧系统的可设范围）
         if (AutoReturn < 2) AutoReturn = 2;
         else if (AutoReturn > 10) AutoReturn = 10;
+
+        // 语言：只接受 zh / en / both，其余回落中文
+        if (Lang != "zh" && Lang != "en" && Lang != "both") Lang = "zh";
 
         var pos = Sanitize(PositiveReasons, "好评原因", out var e1);
         if (e1 != null) return e1;

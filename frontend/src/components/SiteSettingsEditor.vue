@@ -16,6 +16,8 @@ const form = ref({
   negativeMsg: '',
   autoReturn: 4,
   negativeReasonsText: '',
+  lang: 'zh',
+  voiceEnabled: false,
 })
 
 function token() {
@@ -35,6 +37,8 @@ async function load() {
       negativeMsg: d.negativeMsg || '',
       autoReturn: Number(d.autoReturn) || 4,
       negativeReasonsText: (d.negativeReasons || []).join('\n'),
+      lang: d.lang === 'en' || d.lang === 'both' ? d.lang : 'zh',
+      voiceEnabled: d.voiceEnabled === true,
     }
     loaded.value = true
   } catch (e) {
@@ -65,6 +69,8 @@ async function save() {
       negativeMsg: form.value.negativeMsg,
       autoReturn: Number(form.value.autoReturn) || 4,
       negativeReasons: toList(form.value.negativeReasonsText),
+      lang: form.value.lang,
+      voiceEnabled: !!form.value.voiceEnabled,
     })
     // 用后端回传的结果回填，这样能立刻看到"去重/去空"后的真实效果
     const d = res.data || {}
@@ -120,6 +126,20 @@ onMounted(load)
       <input v-model.number="form.autoReturn" type="number" min="2" max="10" step="1" />
     </label>
 
+    <label>
+      <span>客人页界面语言<em>zh 仅中文 / en 仅英文 / both 中英同屏（仅翻译按钮、弹窗等固定 UI 文案）</em></span>
+      <select v-model="form.lang" class="fs">
+        <option value="zh">中文（zh）</option>
+        <option value="en">英文（en）</option>
+        <option value="both">中英同屏（both）</option>
+      </select>
+    </label>
+
+    <label class="switch">
+      <span>语音播报<em>开启后客人页 30 秒首次播报、之后每 60 秒重复（默认关闭）</em></span>
+      <input v-model="form.voiceEnabled" type="checkbox" />
+    </label>
+
     <div class="grid">
       <label>
         <span>差评选项<em>每行一个，最多 20 项、每项≤20 字；客人提交差评时强制至少选一项</em></span>
@@ -149,6 +169,9 @@ label em { font-style:normal; color:#bbb; margin-left:6px; font-size:.75rem; }
 input, textarea { width:100%; padding:9px 11px; border:1px solid #ddd; border-radius:8px; font-size:.9rem; font-family:inherit; box-sizing:border-box; background:#fff; }
 textarea { resize:vertical; line-height:1.7; }
 .note p { margin:0; padding:10px 12px; background:#faf8f2; border:1px dashed #e6dcc2; border-radius:8px; font-size:.82rem; color:#8a7a4d; line-height:1.7; }
+.switch { display:flex; align-items:center; gap:12px; }
+.switch > span { margin-bottom:0; }
+.switch input[type=checkbox] { width:22px; height:22px; accent-color:var(--gold); cursor:pointer; }
 .note strong { color:#a07d1f; }
 input:focus, textarea:focus { outline:none; border-color:var(--gold); }
 .grid { display:grid; grid-template-columns:1fr 1fr; gap:0 14px; }

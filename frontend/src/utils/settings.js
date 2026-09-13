@@ -18,6 +18,10 @@ export const DEFAULT_SETTINGS = {
   autoReturn: 4,
   positiveReasons: ['服务态度好', '房间干净', '设施完善', '位置方便', '性价比高', '早餐丰富'],
   negativeReasons: ['服务态度差', '房间不干净', '设施故障', '噪音大', '网络差', '其他'],
+  // Q14：界面语言 zh / en / both（both = 中英同屏）
+  lang: 'zh',
+  // Q13：语音播报开关（默认关，后台可开）
+  voiceEnabled: false,
 }
 
 // 只接受结构正确的字段，其余一律回落默认值（防止后端返回 null / 错类型导致页面崩掉）
@@ -32,6 +36,11 @@ function sanitize(data) {
   const ar = Number(data?.autoReturn)
   if (Number.isFinite(ar)) out.autoReturn = Math.min(10, Math.max(2, Math.round(ar)))
   else out.autoReturn = DEFAULT_SETTINGS.autoReturn
+  // Q14：语言只接受 zh / en / both
+  if (data?.lang === 'en' || data?.lang === 'both') out.lang = data.lang
+  else out.lang = 'zh'
+  // Q13：语音播报开关（后端回布尔，前端兜底为布尔）
+  out.voiceEnabled = data?.voiceEnabled === true
   for (const k of ['positiveReasons', 'negativeReasons']) {
     if (Array.isArray(data[k])) {
       out[k] = data[k].filter(x => typeof x === 'string' && x.trim())

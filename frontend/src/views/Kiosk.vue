@@ -3,6 +3,7 @@ import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { api } from '../api/http.js'
 import { auth } from '../utils/auth.js'
 import { settings } from '../utils/settings.js'
+import { t } from '../utils/i18n.js'
 // LOGO 路径（默认随 GitHub Pages 子路径适配；若后台已上传自定义 LOGO 会自动替换）
 import { logoUrl } from '../utils/logo.js'
 
@@ -43,6 +44,48 @@ function tick() {
   const d = new Date()
   now.value = `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
 }
+
+// Q14：感谢页倒计时文案随语言切换（"N 秒后自动返回" / "Return in N seconds" / 中英同屏）
+const cdText = computed(() => {
+  const lang = settings.value.lang || 'zh'
+  const n = countdown.value
+  if (lang === 'en') return `Return in ${n} seconds`
+  if (lang === 'both') return `${n} 秒后自动返回 / Return in ${n} seconds`
+  return `${n} 秒后自动返回`
+})
+
+// Q13：语音播报（后台开关，默认关）。开启后 30 秒首次播报、之后每 60 秒重复。
+// 用浏览器自带 SpeechSynthesis，不占后端资源；不支持的浏览器静默忽略。
+const voiceOn = computed(() => settings.value.voiceEnabled === true)
+let voiceFirstTimer = null
+let voiceRepeatTimer = null
+function speakWelcome() {
+  try {
+    const u = window.speechSynthesis
+    if (!u) return
+    u.cancel() // 避免与上一段叠音
+    const text = `${settings.value.hotelName}，${settings.value.guestPrompt || ''}`.trim()
+    const utt = new SpeechSynthesisUtterance(text)
+    utt.lang = settings.value.lang === 'en' ? 'en-US' : 'zh-CN'
+    u.speak(utt)
+  } catch { /* 浏览器不支持语音就忽略 */ }
+}
+function startVoice() {
+  if (!voiceOn.value || voiceFirstTimer) return
+  // 30 秒后首次播报，之后每 60 秒重复
+  voiceFirstTimer = setTimeout(() => {
+    speakWelcome()
+    voiceRepeatTimer = setInterval(speakWelcome, 60000)
+  }, 30000)
+}
+function stopVoice() {
+  if (voiceFirstTimer) { clearTimeout(voiceFirstTimer); voiceFirstTimer = null }
+  if (voiceRepeatTimer) { clearInterval(voiceRepeatTimer); voiceRepeatTimer = null }
+  try { window.speechSynthesis?.cancel() } catch {}
+}
+// 后台切换开关时即时响应（设置通常在客人页加载后由管理员在后台改，刷新后生效；
+// 这里再补一个响应式，免得刚改完就得手动刷新客人页）
+watch(voiceOn, (on) => { if (on) startVoice(); else stopVoice() })
 
 // 切换类型时清空已选原因，避免残留上一个类型的选项被提交
 watch(type, () => { reasons.value = [] })
@@ -124,10 +167,14 @@ function startCountdown() {
   }, 1000)
 }
 
-onMounted(() => { tick(); clockTimer = setInterval(tick, 1000) })
+onMounted(() => {
+  tick(); clockTimer = setInterval(tick, 1000)
+  if (voiceOn.value) startVoice()
+})
 onBeforeUnmount(() => {
   if (cdTimer) clearInterval(cdTimer)
   if (clockTimer) clearInterval(clockTimer)
+  stopVoice()
 })
 </script>
 
@@ -145,12 +192,12 @@ onBeforeUnmount(() => {
 
     <!-- 两个大按钮：好评=立即保存；差评=弹出原因选择 -->
     <div class="row">
-      <button class="big positive" @click="submitPositive">👍 好评</button>
-      <button class="big negative" @click="openNegative">👎 差评</button>
+      <button class="big positive" @click="submitPositive">👍 {{ t('好评', 'Good') }}</button>
+      <button class="big negative" @click="openNegative">👎 {{ t('差评', 'Bad') }}</button>
     </div>
 
     <div class="room" :class="{locked: isRoomMode}">
-      <span class="label">房间号</span>
+      <span class="label">{{ t('房间号', 'Room') }}</span>
       <span v-if="isRoomMode" class="value">{{ room }}</span>
       <input
         v-else
@@ -158,7 +205,7 @@ onBeforeUnmount(() => {
         class="room-input"
         type="text"
         maxlength="50"
-        placeholder="如 802（可不填）"
+        :placeholder="t('如 802（可不填）', 'e.g. 802 (optional)')"
       />
     </div>
 
@@ -166,7 +213,7 @@ onBeforeUnmount(() => {
     <transition name="fade">
       <div v-if="showNegative" class="modal-mask" @click.self="closeNegative">
         <div class="modal" role="dialog" aria-modal="true">
-          <div class="modal-title">请告诉我们哪里需要改进</div>
+          <div class="modal-title">{{ t('请告诉我们哪里需要改进', 'Please tell us what to improve') }}</div>
           <div class="chips">
             <button
               v-for="r in negativeOptions"
@@ -176,14 +223,14 @@ onBeforeUnmount(() => {
               @click="toggleReason(r)"
             >{{ r }}</button>
           </div>
-          <p class="req-tip" :class="{show: reasons.length === 0}">请至少选择一项不满意的原因</p>
+          <p class="req-tip" :class="{show: reasons.length === 0}">{{ t('请至少选择一项不满意的原因', 'Please select at least one reason') }}</p>
           <div class="modal-actions">
-            <button class="ghost" :disabled="submitting" @click="closeNegative">返回</button>
+            <button class="ghost" :disabled="submitting" @click="closeNegative">{{ t('返回', 'Back') }}</button>
             <button
               class="submit"
               :disabled="reasons.length === 0 || submitting"
               @click="submitNegative"
-            >{{ submitting ? '提交中…' : '提交差评' }}</button>
+            >{{ submitting ? t('提交中…', 'Submitting…') : t('提交差评', 'Submit') }}</button>
           </div>
         </div>
       </div>
@@ -215,7 +262,7 @@ onBeforeUnmount(() => {
           </svg>
         </div>
         <div class="msg">{{ thanksMsg }}</div>
-        <div class="cd">{{ countdown }} 秒后自动返回</div>
+        <div class="cd">{{ cdText }}</div>
       </div>
     </transition>
   </div>

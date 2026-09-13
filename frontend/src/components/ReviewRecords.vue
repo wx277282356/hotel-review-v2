@@ -7,7 +7,8 @@
 
   对齐点（逐条对照旧系统 admin.html:1038-1087 / html:455-509）：
     · 筛选条件：开始日期、结束日期、类型、差评原因、操作工号、房间号（六个，全部生效）
-    · 默认日期区间 = 今天往前 29 天 ~ 今天（旧系统 initRecDates 就是这个默认值）
+    · 默认 = 全部时间（不预填日期区间）。Q12 决策：导出要"默认全部时间 + 跟随筛选 + 按钮旁标'将导出 N 条'"，
+      为避免旧系统"以为导出全部、其实只有一个月"的坑，这里连页面默认都改成全量，日期框仅作可选筛选。
     · 每页 20 条（旧系统 REC_PAGE_SIZE = 20），只在总页数 > 1 时显示页码
     · 列：时间 / 房间号 / 评价 / 差评原因 / 操作工号   顺序与文案一致
     · 时间格式 `YYYY-MM-DD HH:mm`（本地时区，分钟精度）
@@ -21,7 +22,7 @@
     1. 旧系统导出漏了「房间号」筛选条件（exportRecordsExcel 没传 room），这里补上 ——
        导出结果与页面所见完全一致。
     2. 旧系统默认把日期筛成最近 30 天且没有任何提示，导致"以为导出的是全部、其实只有一个月"。
-       这里保留同样的默认区间，但加了一个「清除日期」按钮，一键回到全量。
+       这里 Q12 改为默认就是全量（不预填日期），并新增按钮旁「将导出 N 条」提示，导出范围对前台完全可见。
 -->
 <script setup>
 import { ref, computed, onMounted, watch, onBeforeUnmount } from 'vue'
@@ -182,13 +183,10 @@ async function loadStaffOptions() {
 }
 
 onMounted(async () => {
-  // 默认区间：今天往前 29 天 ~ 今天（与旧系统 initRecDates 一致）
-  const end = new Date()
-  const start = new Date()
-  start.setDate(start.getDate() - 29)
-  startDate.value = fmtDateInput(start)
-  endDate.value = fmtDateInput(end)
-
+  // Q12：默认「全部时间」（不预填日期区间）。
+  // 旧系统把默认锁成最近 30 天且无提示，导致"以为导出全部、其实只有一个月"的坑；
+  // 这里改成默认就查全部，配合「将导出 N 条」让导出范围对前台可见、可预期。
+  // 想看某段区间再用日期框筛选即可，「清除日期」一键回到全量。
   await load()
   loadStaffOptions()
 })
@@ -290,7 +288,8 @@ async function exportExcel() {
       </div>
 
       <button class="btn ghost" @click="clearDates">清除日期</button>
-      <button v-if="isAdmin()" class="btn gold" :disabled="exporting" @click="exportExcel">
+      <span class="export-hint">将导出 <b>{{ total }}</b> 条</span>
+      <button v-if="isAdmin()" class="btn gold" :disabled="exporting || total === 0" @click="exportExcel">
         {{ exporting ? '导出中…' : '📥 导出 Excel' }}
       </button>
     </div>
@@ -353,7 +352,7 @@ async function exportExcel() {
     </div>
 
     <p class="note">
-      🔒 评价数据只读，任何人都不可删除。默认显示最近 30 天，要看全部请点「清除日期」。
+      🔒 评价数据只读，任何人都不可删除。默认显示全部记录；导出按当前筛选条件导出全部匹配数据，按钮旁「将导出 N 条」即本次实际导出条数。
     </p>
   </div>
 </template>
@@ -377,6 +376,8 @@ async function exportExcel() {
 .btn.gold { background: var(--gold); color: #fff; border-color: var(--gold); }
 .btn.ghost { background: #fff; color: #666; }
 .btn:disabled { opacity: .6; cursor: default; }
+.export-hint { font-size: .8rem; color: #888; align-self: center; }
+.export-hint b { color: var(--gold); }
 .err { color: var(--red); font-size: .8rem; margin: 0 0 10px; }
 
 .card { background: #fff; border: 1px solid #eee; border-radius: 10px; padding: 12px; }
